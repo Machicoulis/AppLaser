@@ -100,7 +100,7 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 
 ### 4.6 Hors périmètre MVP (évolutions possibles)
 
-- Connexion Wi-Fi directe à la machine (v1 : USB uniquement).
+- Connexion Wi-Fi directe à la machine — MVP en USB uniquement, Wi-Fi retenu comme évolution v2 confirmée (protocole d'intégration à étudier le moment venu).
 - Multi-utilisateurs / comptes / partage de projets.
 - Génération automatique de trajectoires d'optimisation avancées (nesting, tri-tramage complexe).
 - Support d'autres machines/firmwares que GRBL.
@@ -233,5 +233,4 @@ Liste de contrôle issue des retours d'expérience courants sur la découpe/grav
 
 ## 10. Points ouverts à trancher avec l'utilisateur
 
-- Priorité entre USB et Wi-Fi pour le pilotage direct si les deux doivent être supportés à terme.
 - Quelle stratégie de simplification des données OSM (seuils de filtrage par type de voie, niveau de zoom) pour garder un rendu lisible et un temps de gravure raisonnable ?

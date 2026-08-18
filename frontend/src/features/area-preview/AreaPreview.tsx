@@ -28,20 +28,27 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     fetch("http://localhost:4000/api/mapdata", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ bbox: selection.bbox }),
+      signal: controller.signal,
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Erreur ${res.status}`);
         return res.json();
       })
       .then((data: LayerLines) => setLayers(data))
-      .catch(() => setError("Impossible de récupérer les données OpenStreetMap (backend ou réseau indisponible)."))
+      .catch((err) => {
+        if (err.name === "AbortError") return; // requête annulée (démontage / re-render), pas une vraie erreur
+        setError("Impossible de récupérer les données OpenStreetMap (backend ou réseau indisponible).");
+      })
       .finally(() => setLoading(false));
+
+    return () => controller.abort();
   }, [selection]);
 
   const aspectRatio = selection.plateWidthMm / selection.plateHeightMm;

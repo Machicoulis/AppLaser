@@ -8,6 +8,7 @@ const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
 ];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h : les données OSM d'une zone ne changent pas d'une session à l'autre
+const USER_AGENT = "AppLaser/0.1 (usage personnel, generateur de cartes laser)";
 
 interface CacheEntry {
   data: OverpassResponse;
@@ -47,6 +48,8 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           Accept: "application/json, text/plain, */*",
+          "Accept-Language": "fr,en;q=0.5",
+          "User-Agent": USER_AGENT,
         },
         body: `data=${encodeURIComponent(query)}`,
       });

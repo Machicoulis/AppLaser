@@ -130,7 +130,48 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 4. L'utilisateur peut choisir un preset matériau et l'appliquer à son design.
 5. L'utilisateur peut se connecter en USB à la machine, envoyer le G-code, suivre la progression, et arrêter le job à tout moment.
 
-## 9. Points ouverts à trancher avec l'utilisateur
+## 9. Points de vigilance techniques (bonnes pratiques du secteur)
+
+Liste de contrôle issue des retours d'expérience courants sur la découpe/gravure laser et les cartes multi-couches, à garder en tête pendant la conception et avant chaque production.
+
+**Préparation des données / fichiers**
+- [ ] Nettoyer/simplifier les données OSM avant génération : les exports bruts peuvent contenir des milliers de segments inutiles ; filtrer par type de voie et appliquer une tolérance de simplification (ex. Douglas-Peucker).
+- [ ] Détecter et corriger les auto-intersections de tracés issues d'OSM avant conversion en G-code — sinon trajectoires incohérentes ou boucles parasites.
+- [ ] Toujours convertir le texte (titre, coordonnées) en tracés vectoriels (paths) avant export — ne jamais envoyer du texte "live" (police système) au laser.
+
+**Petites pièces isolées ("îlots") et fragilité**
+- [ ] Repérer les éléments qui deviendraient des pièces détachées après découpe (petite île, tronçon de route isolé en bord de plaque) et les fusionner avec une pièce voisine, ou basculer en gravure plutôt qu'en découpe pour ces cas précis.
+- [ ] Traiter les ponts comme faisant partie de la couche "route/terre", jamais comme un élément flottant dans la couche "eau".
+- [ ] S'assurer que le cadre du Layer 3 englobe bien les extrémités des routes qui touchent le bord de la plaque, pour qu'elles ne se détachent pas au découpage.
+- [ ] Éviter les traits de découpe trop rapprochés (bois fragilisé, risque de casse à la manipulation).
+
+**Cadre et texte**
+- [ ] Vérifier une largeur de trait minimale pour la découpe (police trop fine = risque de casse).
+- [ ] Garder une marge de sécurité entre texte/cadre et le bord de la plaque.
+
+**Kerf (largeur du trait laser)**
+- [ ] Faire un test de kerf avant un projet important : le kerf varie avec la puissance/vitesse/matériau, et diffère parfois d'une plaque de contreplaqué à l'autre (variabilité du bois).
+- [ ] Prévoir, à terme, une compensation de kerf configurable si des pièces doivent s'emboîter précisément.
+
+**Réglages matériau (puissance/vitesse)**
+- [ ] Toujours faire une mire de test puissance x vitesse (grille 4x4 ou 5x5) sur une chute avant de lancer la pièce finale, en particulier à chaque changement de lot/fournisseur de contreplaqué.
+- [ ] Privilégier un contreplaqué "qualité laser" (bouleau baltique) : le contreplaqué de grande surface a des poches de colle interne qui perturbent la découpe.
+- [ ] Activer l'air assist pour limiter le noircissement des bords et les flare-ups sur le bois.
+- [ ] Envisager un ruban de masquage/transfert sur la surface avant gravure pour limiter les traces de fumée.
+
+**Sécurité machine**
+- [ ] Ne jamais laisser la machine sans surveillance pendant un job (un feu peut démarrer en quelques secondes sur du bois).
+- [ ] Ventilation dédiée vers l'extérieur (un simple filtre à charbon ne suffit pas en usage prolongé).
+- [ ] Extincteur à proximité immédiate de la machine, vérifié et à jour.
+- [ ] Nettoyage régulier des optiques (lentille, miroirs) et du ventilateur — poussières/résidus inflammables.
+- [ ] Utiliser une grille nid d'abeille pour maintenir le matériau à plat et limiter les étincelles.
+
+**Assemblage final**
+- [ ] Prévoir des repères d'alignement (petites marques gravées, cachées sous le cadre une fois assemblé) sur chaque couche pour faciliter le collage.
+- [ ] Laisser sécher chaque couche collée avant d'ajouter la suivante, plutôt que d'empiler et coller en une fois.
+- [ ] Nommer/organiser clairement les fichiers exportés par couche pour éviter toute confusion au moment de l'envoi à la machine.
+
+## 10. Points ouverts à trancher avec l'utilisateur
 
 - Backend local nécessaire ou tout doit rester 100% côté navigateur ? *(la récupération de données OSM/Overpass pose la question d'un éventuel proxy/cache serveur pour éviter les limitations de l'API publique)*
 - Faut-il prévoir dès le MVP un mode "caméra" (aperçu photo de la pièce sous le laser) ? *(fonctionnalité native Phecda avec sa propre caméra/app)*

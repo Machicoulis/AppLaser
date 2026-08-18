@@ -151,7 +151,9 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
           <div className="area-preview__loading">
             <div className="area-preview__spinner" />
             <p>Récupération des données OpenStreetMap…</p>
-            <p className="area-preview__loading-hint">Ça peut prendre 10 à 30 secondes selon la taille de la zone.</p>
+            <p className="area-preview__loading-hint">
+              Ça peut prendre jusqu'à une minute si le service OpenStreetMap est lent à répondre.
+            </p>
           </div>
         )}
       </div>

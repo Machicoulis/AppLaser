@@ -9,6 +9,7 @@ const OVERPASS_URLS = [
 ];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h : les données OSM d'une zone ne changent pas d'une session à l'autre
 const USER_AGENT = "AppLaser/0.1 (usage personnel, generateur de cartes laser)";
+const TIMEOUT_MS = 20_000; // un miroir qui ne répond pas du tout ne doit pas bloquer indéfiniment
 
 interface CacheEntry {
   data: OverpassResponse;
@@ -52,6 +53,7 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
           "User-Agent": USER_AGENT,
         },
         body: `data=${encodeURIComponent(query)}`,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       if (!response.ok) {
         lastError = new Error(`${url} a répondu ${response.status}`);
@@ -63,7 +65,8 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
       return data;
     } catch (err) {
       lastError = err;
-      console.warn(`Échec de connexion à ${url} :`, err);
+      const reason = err instanceof Error && err.name === "TimeoutError" ? `pas de réponse après ${TIMEOUT_MS / 1000}s` : err;
+      console.warn(`Échec de connexion à ${url} :`, reason);
     }
   }
   throw lastError;

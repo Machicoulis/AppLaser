@@ -46,7 +46,10 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
         if (err.name === "AbortError") return; // requête annulée (démontage / re-render), pas une vraie erreur
         setError("Impossible de récupérer les données OpenStreetMap (backend ou réseau indisponible).");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        // si la requête a été annulée (cf. cleanup ci-dessous), une requête plus récente est en cours : ne pas la couper court
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
     return () => controller.abort();
   }, [selection]);
@@ -116,6 +119,13 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
               });
             })}
           </svg>
+        )}
+        {loading && (
+          <div className="area-preview__loading">
+            <div className="area-preview__spinner" />
+            <p>Récupération des données OpenStreetMap…</p>
+            <p className="area-preview__loading-hint">Ça peut prendre 10 à 30 secondes selon la taille de la zone.</p>
+          </div>
         )}
       </div>
     </div>

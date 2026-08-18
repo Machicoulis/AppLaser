@@ -33,7 +33,8 @@ router.post("/", async (req, res) => {
     }
 
     res.json(layers);
-  } catch {
+  } catch (err) {
+    console.error("Erreur /api/mapdata :", err);
     res.status(502).json({ error: "Impossible de récupérer les données OpenStreetMap" });
   }
 });

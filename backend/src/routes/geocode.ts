@@ -35,7 +35,8 @@ router.get("/search", async (req, res) => {
     const data = await response.json();
     cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
     res.json(data);
-  } catch {
+  } catch (err) {
+    console.error("Erreur /api/geocode/search :", err);
     res.status(502).json({ error: "Impossible de contacter Nominatim" });
   }
 });

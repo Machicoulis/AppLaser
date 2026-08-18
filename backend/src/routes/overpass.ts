@@ -11,7 +11,8 @@ router.post("/query", async (req, res) => {
   try {
     const data = await fetchOverpass(query);
     res.json(data);
-  } catch {
+  } catch (err) {
+    console.error("Erreur /api/overpass/query :", err);
     res.status(502).json({ error: "Impossible de contacter Overpass API" });
   }
 });

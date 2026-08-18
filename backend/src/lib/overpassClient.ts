@@ -52,6 +52,7 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
       });
       if (!response.ok) {
         lastError = new Error(`${url} a répondu ${response.status}`);
+        console.warn(lastError);
         continue;
       }
       const data = (await response.json()) as OverpassResponse;
@@ -59,6 +60,7 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
       return data;
     } catch (err) {
       lastError = err;
+      console.warn(`Échec de connexion à ${url} :`, err);
     }
   }
   throw lastError;

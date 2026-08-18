@@ -1,12 +1,15 @@
+import { useState } from "react";
+import { AreaPreview } from "./features/area-preview/AreaPreview";
 import { MapAreaSelector, type AreaSelection } from "./features/map-selection/MapAreaSelector";
 
 function App() {
-  function handleConfirm(selection: AreaSelection) {
-    // TODO : brancher sur la récupération Overpass + le workflow de configuration par layer (section 4.1 du cahier des charges)
-    console.log("Zone confirmée", selection);
+  const [selection, setSelection] = useState<AreaSelection | null>(null);
+
+  if (selection) {
+    return <AreaPreview selection={selection} onBack={() => setSelection(null)} />;
   }
 
-  return <MapAreaSelector onConfirm={handleConfirm} />;
+  return <MapAreaSelector onConfirm={setSelection} />;
 }
 
 export default App;

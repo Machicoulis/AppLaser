@@ -65,7 +65,8 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 - Réglages puissance/vitesse/passes indépendants par layer, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
 
 **Niveau de détail des données OSM**
-- Nécessité de filtrer/simplifier les données Overpass avant génération du G-code (ex. simplification des tracés, seuil de longueur minimal pour les petites rues) afin de rester gravable proprement à l'échelle de la plaque — point technique à approfondir en conception.
+- **Réglage manuel** : un curseur "niveau de détail" (simplification des tracés, réduction du nombre de points par courbe) ajustable par l'utilisateur, avec aperçu en direct du rendu avant export — pas d'automatisation cachée, l'utilisateur voit et contrôle le résultat.
+- Combiné à la sélection des types de voies par layer déjà prévue (section "Workflow de configuration") pour exclure les éléments non désirés (ex. petites allées piétonnes) en plus de la simplification géométrique.
 
 ### 4.2 Import et préparation de design générique
 - Import d'images matricielles (PNG, JPG) pour gravure trame (raster).
@@ -233,4 +234,4 @@ Liste de contrôle issue des retours d'expérience courants sur la découpe/grav
 
 ## 10. Points ouverts à trancher avec l'utilisateur
 
-- Quelle stratégie de simplification des données OSM (seuils de filtrage par type de voie, niveau de zoom) pour garder un rendu lisible et un temps de gravure raisonnable ?
+Aucun point ouvert à ce stade — tous les points identifiés ont été tranchés (voir historique des décisions ci-dessus). De nouveaux points pourront apparaître au fil de la conception détaillée et seront ajoutés ici.

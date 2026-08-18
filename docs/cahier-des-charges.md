@@ -55,6 +55,7 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 **Cadre, titre et coordonnées (sur le Layer 3)**
 - Le nom de la ville est **intégré et découpé/gravé en relief dans le cadre** du Layer 3.
 - Le titre est **librement repositionnable et orientable** (déplacement + rotation) dans la zone du cadre, plutôt que fixé à un emplacement unique.
+- **Police et taille du texte configurables** : choix de la police d'écriture (parmi une liste de polices adaptées à la gravure/découpe laser — mono-trait ou pleines selon le rendu voulu) et réglage de la taille du texte, pour le titre comme pour les coordonnées.
 - **Coordonnées GPS optionnelles** : activables via un **décalage (offset)** qui agrandit le cadre d'un côté pour dégager la place nécessaire à leur affichage (plutôt que deux styles de cadre distincts) ; désactivées, le cadre reste au plus près de la carte.
 - **Bords arrondis du cadre** : rayon configurable indépendamment pour le **contour extérieur (outer)** et le **contour intérieur (inner)** du cadre.
 

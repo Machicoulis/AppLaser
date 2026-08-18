@@ -41,16 +41,22 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 
 **Sélection de la zone**
 - Carte interactive (type Leaflet/MapLibre) permettant de naviguer et de positionner/redimensionner un cadre ajustable qui définit précisément la zone géographique à découper.
-- Le cadre est dimensionné en cohérence avec le format physique de la plaque visé (ex. 400x400mm, ou format personnalisé en mm/pouces).
+- **Format personnalisable** : l'utilisateur définit librement les dimensions de la plaque visée (largeur x hauteur en mm), dans la limite de la zone de travail de la machine (400x400mm max sur la Phecda) ; le cadre s'ajuste en conséquence.
 
 **Structure des couches (3 plaques physiques superposées)**
 1. **Plaque de fond** — plaque pleine (uniquement le contour extérieur découpé), destinée à être peinte en bleu par l'utilisateur après fabrication ; elle devient visible par transparence à travers les découpes des plans d'eau de la couche du dessus.
 2. **Plaque intermédiaire** — gravure de surface pour les routes secondaires/départementales, avec options activables individuellement (parcs, voies ferrées, chemins, etc.), et **découpe traversante** des plans d'eau (rivières, lacs, mer) pour laisser apparaître la plaque de fond bleue en dessous.
 3. **Plaque supérieure** — grands axes routiers/autoroutes, en découpe traversante pour apparaître en relief au-dessus de la plaque intermédiaire.
-- Option : gravure du nom de la ville et des coordonnées GPS (comme sur l'exemple de référence), à positionner sur une des couches — *à confirmer avec l'utilisateur sur quelle couche/plaque.*
+
+**Cadre et texte**
+- Le nom de la ville est **intégré et gravé/découpé en relief dans le cadre** (pas sur les plaques de carte elles-mêmes).
+- Deux styles de cadre disponibles :
+  - **Cadre classique** — bordure simple autour de la carte, avec le nom de la ville uniquement.
+  - **Cadre "polaroid"** — bande basse élargie façon photo polaroid, dégageant un espace dédié pour afficher en plus les coordonnées GPS.
+- Les **coordonnées GPS sont optionnelles** (affichables/masquables), disponibles uniquement avec le cadre polaroid.
 
 **Export**
-- Chaque couche est générée et exportée séparément (aperçu SVG + G-code dédié), une couche = un fichier = un job = une plaque de matériau.
+- Chaque couche est générée et exportée séparément (aperçu SVG + G-code dédié), une couche = un fichier = un job = une plaque de matériau. Le cadre (avec nom de ville et coordonnées optionnelles) constitue un export supplémentaire, indépendant des 3 plaques de carte.
 - Pas de système d'alignement automatisé prévu dans le MVP (cf. décision utilisateur ci-dessous) : l'utilisateur gère lui-même le calage physique des plaques entre elles (un simple contour de référence commun sur chaque couche suffit à guider l'empilement).
 - Réglages puissance/vitesse/passes indépendants par couche, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
 
@@ -126,6 +132,5 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 - Faut-il prévoir dès le MVP un mode "caméra" (aperçu photo de la pièce sous le laser) ? *(fonctionnalité native Phecda avec sa propre caméra/app)*
 - Quel niveau de bibliothèque de presets par défaut fournir (liste de matériaux de départ) ?
 - Priorité entre USB et Wi-Fi pour le pilotage direct si les deux doivent être supportés à terme.
-- Sur quelle couche du module cartes placer le texte (nom de ville + coordonnées GPS) ? Faut-il une 4ᵉ plaque dédiée type "cadre/socle inférieur" comme sur l'exemple de référence, ou l'intégrer à la plaque de fond ?
-- Format(s) de plaque à supporter pour le module cartes : uniquement 400x400mm (zone max de la Phecda) ou formats personnalisés plus petits ?
 - Quelle stratégie de simplification des données OSM (seuils de filtrage par type de voie, niveau de zoom) pour garder un rendu lisible et un temps de gravure raisonnable ?
+- Nécessité d'un backend/proxy pour les appels Overpass (cache, gestion des limites de débit de l'API publique OSM) : à trancher en phase d'architecture technique — recommandation par défaut : prévoir un petit proxy/cache serveur pour fiabiliser les imports, plutôt que d'appeler Overpass directement depuis le navigateur.

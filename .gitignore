@@ -1,0 +1,23 @@
+# Dépendances
+node_modules
+
+# Builds
+dist
+dist-ssr
+backend/dist
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Données locales (projets/presets de l'utilisateur, générées à l'usage)
+backend/data/projects/*.json
+backend/data/presets.json
+
+# Éditeurs / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.local

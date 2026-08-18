@@ -43,22 +43,25 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 - Carte interactive (type Leaflet/MapLibre) permettant de naviguer et de positionner/redimensionner un cadre ajustable qui définit précisément la zone géographique à découper.
 - **Format personnalisable** : l'utilisateur définit librement les dimensions de la plaque visée (largeur x hauteur en mm), dans la limite de la zone de travail de la machine (400x400mm max sur la Phecda) ; le cadre s'ajuste en conséquence.
 
-**Structure des couches (3 plaques physiques superposées)**
-1. **Plaque de fond** — plaque pleine (uniquement le contour extérieur découpé), destinée à être peinte en bleu par l'utilisateur après fabrication ; elle devient visible par transparence à travers les découpes des plans d'eau de la couche du dessus.
-2. **Plaque intermédiaire** — gravure de surface pour les routes secondaires/départementales, avec options activables individuellement (parcs, voies ferrées, chemins, etc.), et **découpe traversante** des plans d'eau (rivières, lacs, mer) pour laisser apparaître la plaque de fond bleue en dessous.
-3. **Plaque supérieure** — grands axes routiers/autoroutes, en découpe traversante pour apparaître en relief au-dessus de la plaque intermédiaire.
+**Structure des couches — exactement 3 plaques physiques superposées**
+1. **Layer 1 — Fond** : plaque pleine (uniquement le contour extérieur découpé). Laissée neutre ou peinte en bleu par l'utilisateur après fabrication ; elle marque les plans d'eau par transparence à travers la découpe de la couche du dessus. Aucun autre élément sur cette plaque.
+2. **Layer 2 — Intermédiaire** : **gravure** de surface pour les routes secondaires/départementales + éléments optionnels sélectionnables (parcs, voies ferrées, chemins, etc.), et **découpe traversante** des plans d'eau (rivières, lacs, mer) pour laisser apparaître le Layer 1 (fond bleu) en dessous.
+3. **Layer 3 — Supérieure** : **découpe uniquement** (pas de gravure) des grands axes routiers/autoroutes, **fusionnée avec le cadre et le titre** — cadre, nom de ville et routes principales sont sur la même plaque/le même export, il n'y a pas de plaque "cadre" séparée.
 
-**Cadre et texte**
-- Le nom de la ville est **intégré et gravé/découpé en relief dans le cadre** (pas sur les plaques de carte elles-mêmes).
-- Deux styles de cadre disponibles :
-  - **Cadre classique** — bordure simple autour de la carte, avec le nom de la ville uniquement.
-  - **Cadre "polaroid"** — bande basse élargie façon photo polaroid, dégageant un espace dédié pour afficher en plus les coordonnées GPS.
-- Les **coordonnées GPS sont optionnelles** (affichables/masquables), disponibles uniquement avec le cadre polaroid.
+**Workflow de configuration — layer par layer**
+- L'utilisateur configure les couches une par une dans l'interface : pour chaque layer, il sélectionne les types d'éléments OSM à inclure (ex. Layer 2 : routes secondaires toujours incluses + cases à cocher parcs / voies ferrées / chemins ; Layer 3 : routes principales).
+- Aperçu visuel indépendant par layer pendant la configuration, avant export.
+
+**Cadre, titre et coordonnées (sur le Layer 3)**
+- Le nom de la ville est **intégré et découpé/gravé en relief dans le cadre** du Layer 3.
+- Le titre est **librement repositionnable et orientable** (déplacement + rotation) dans la zone du cadre, plutôt que fixé à un emplacement unique.
+- **Coordonnées GPS optionnelles** : activables via un **décalage (offset)** qui agrandit le cadre d'un côté pour dégager la place nécessaire à leur affichage (plutôt que deux styles de cadre distincts) ; désactivées, le cadre reste au plus près de la carte.
+- **Bords arrondis du cadre** : rayon configurable indépendamment pour le **contour extérieur (outer)** et le **contour intérieur (inner)** du cadre.
 
 **Export**
-- Chaque couche est générée et exportée séparément (aperçu SVG + G-code dédié), une couche = un fichier = un job = une plaque de matériau. Le cadre (avec nom de ville et coordonnées optionnelles) constitue un export supplémentaire, indépendant des 3 plaques de carte.
-- Pas de système d'alignement automatisé prévu dans le MVP (cf. décision utilisateur ci-dessous) : l'utilisateur gère lui-même le calage physique des plaques entre elles (un simple contour de référence commun sur chaque couche suffit à guider l'empilement).
-- Réglages puissance/vitesse/passes indépendants par couche, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
+- Chaque layer est généré et exporté séparément (aperçu SVG + G-code dédié) : 3 layers = 3 fichiers = 3 jobs = 3 plaques de matériau (le cadre/titre étant inclus dans l'export du Layer 3, pas de 4ᵉ fichier).
+- Pas de système d'alignement automatisé prévu dans le MVP (cf. décision utilisateur) : l'utilisateur gère lui-même le calage physique des plaques entre elles (un simple contour de référence commun à chaque layer suffit à guider l'empilement).
+- Réglages puissance/vitesse/passes indépendants par layer, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
 
 **Niveau de détail des données OSM**
 - Nécessité de filtrer/simplifier les données Overpass avant génération du G-code (ex. simplification des tracés, seuil de longueur minimal pour les petites rues) afin de rester gravable proprement à l'échelle de la plaque — point technique à approfondir en conception.

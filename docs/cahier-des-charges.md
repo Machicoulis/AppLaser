@@ -107,14 +107,65 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 - **Portabilité** : application web utilisable sur les navigateurs modernes (Chrome/Edge/Firefox) sous Windows/Mac/Linux. L'accès au port série nécessite un navigateur compatible Web Serial API (Chrome/Edge).
 - **Données locales** : les projets et presets doivent être conservés localement (pas d'obligation de compte cloud dans le MVP).
 
-## 6. Architecture technique envisagée (à valider)
+## 6. Architecture technique
 
-- **Frontend** : application web (SPA), rendu du plan de travail et des designs sur `<canvas>`.
-- **Communication machine** : Web Serial API (navigateur → USB → GRBL), ce qui impose Chrome/Edge desktop pour les fonctions de pilotage direct.
-- **Génération de G-code** : logique de conversion image/vecteur → G-code exécutée côté client ou via un petit backend local.
-- **Stockage** : stockage local (navigateur / fichiers locaux) pour projets et presets, sans backend obligatoire dans un premier temps.
+Décisions validées avec l'utilisateur :
 
-*Ce choix d'architecture reste à confirmer avec l'utilisateur avant le début du développement.*
+| Choix | Décision |
+|---|---|
+| Frontend | React + TypeScript + Vite |
+| Backend | Node.js léger (Express ou Fastify), lancé en local en même temps que le frontend |
+| Rendu carte/design | SVG (chaque route, plan d'eau, cadre, texte = élément SVG manipulable individuellement) |
+| Déploiement | Local uniquement (`localhost`), pas d'accès réseau dans le MVP |
+| Communication machine | Web Serial API, depuis le navigateur, direct vers la Phecda en USB |
+
+### 6.1 Schéma des modules
+
+```mermaid
+flowchart TB
+    subgraph Browser["Navigateur (Chrome/Edge, localhost)"]
+        UI["Interface React\n(éditeur SVG, config par layer,\nbibliothèque de projets)"]
+        WebSerial["Web Serial API\n(pilotage machine)"]
+    end
+
+    subgraph Backend["Backend local Node.js"]
+        API["API locale (Express/Fastify)"]
+        OverpassProxy["Proxy + cache Overpass"]
+        Storage["Stockage fichiers\n(projets, presets JSON)"]
+        GCodeGen["Génération G-code\n(raster + vecteur, par layer)"]
+    end
+
+    OSM[("OpenStreetMap\nAPI Overpass")]
+    Phecda[["Elegoo Phecda\n(GRBL, USB)"]]
+
+    UI -- "requêtes zone/couches" --> API
+    API --> OverpassProxy
+    OverpassProxy -- "GeoJSON" --> OSM
+    API --> Storage
+    UI -- "design prêt à exporter" --> API
+    API --> GCodeGen
+    GCodeGen -- "G-code par layer" --> UI
+    UI --> WebSerial
+    WebSerial -- "USB série" --> Phecda
+```
+
+### 6.2 Répartition des responsabilités
+
+**Frontend (React + TS)**
+- Interface de configuration layer par layer (sélection zone, éléments OSM par couche, réglages puissance/vitesse/passes).
+- Éditeur SVG du cadre/titre (drag, rotation, police, taille, bords arrondis, décalage coordonnées).
+- Bibliothèque de projets/presets (consultation, édition — les données vivent côté backend).
+- Pilotage machine via Web Serial API (jog, homing, envoi G-code, suivi de progression, arrêt d'urgence) — **en direct depuis le navigateur**, sans passer par le backend, pour minimiser la latence de contrôle.
+
+**Backend (Node.js local)**
+- Proxy + cache des requêtes Overpass (respect des limites de débit de l'API publique OSM, réutilisation des résultats déjà téléchargés pour une même zone).
+- Traitement des données géographiques : nettoyage, simplification des tracés, découpage par layer selon la sélection utilisateur.
+- Génération du G-code (raster pour les images importées, vectoriel pour SVG/DXF/couches cartographiques) à partir du design validé côté frontend.
+- Stockage des projets et presets en fichiers locaux (JSON), lisibles/sauvegardables facilement par l'utilisateur.
+
+**Pourquoi le Web Serial API reste côté frontend et non backend** : passer par le backend ajouterait un saut réseau inutile pour du pilotage temps réel (jog, arrêt d'urgence) sur une machine déjà branchée en USB au même poste ; le navigateur communique directement avec le port série.
+
+*Le détail des formats d'échange (schéma JSON des projets, structure du G-code par layer) sera précisé en phase de conception détaillée.*
 
 ## 7. Contraintes
 
@@ -173,9 +224,7 @@ Liste de contrôle issue des retours d'expérience courants sur la découpe/grav
 
 ## 10. Points ouverts à trancher avec l'utilisateur
 
-- Backend local nécessaire ou tout doit rester 100% côté navigateur ? *(la récupération de données OSM/Overpass pose la question d'un éventuel proxy/cache serveur pour éviter les limitations de l'API publique)*
 - Faut-il prévoir dès le MVP un mode "caméra" (aperçu photo de la pièce sous le laser) ? *(fonctionnalité native Phecda avec sa propre caméra/app)*
 - Quel niveau de bibliothèque de presets par défaut fournir (liste de matériaux de départ) ?
 - Priorité entre USB et Wi-Fi pour le pilotage direct si les deux doivent être supportés à terme.
 - Quelle stratégie de simplification des données OSM (seuils de filtrage par type de voie, niveau de zoom) pour garder un rendu lisible et un temps de gravure raisonnable ?
-- Nécessité d'un backend/proxy pour les appels Overpass (cache, gestion des limites de débit de l'API publique OSM) : à trancher en phase d'architecture technique — recommandation par défaut : prévoir un petit proxy/cache serveur pour fiabiliser les imports, plutôt que d'appeler Overpass directement depuis le navigateur.

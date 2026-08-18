@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+// overpass-api.de (l'instance historique) bloque de plus en plus le trafic automatisé (erreur 406) ;
+// on tente d'abord des miroirs plus permissifs, avec repli sur l'instance historique en dernier recours.
+const OVERPASS_URLS = [
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+];
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h : les données OSM d'une zone ne changent pas d'une session à l'autre
 
 interface CacheEntry {
@@ -33,15 +39,27 @@ export async function fetchOverpass(query: string): Promise<OverpassResponse> {
   const cached = cache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
 
-  const response = await fetch(OVERPASS_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `data=${encodeURIComponent(query)}`,
-  });
-  if (!response.ok) {
-    throw new Error(`Overpass API a répondu ${response.status}`);
+  let lastError: unknown;
+  for (const url of OVERPASS_URLS) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json, text/plain, */*",
+        },
+        body: `data=${encodeURIComponent(query)}`,
+      });
+      if (!response.ok) {
+        lastError = new Error(`${url} a répondu ${response.status}`);
+        continue;
+      }
+      const data = (await response.json()) as OverpassResponse;
+      cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      return data;
+    } catch (err) {
+      lastError = err;
+    }
   }
-  const data = (await response.json()) as OverpassResponse;
-  cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-  return data;
+  throw lastError;
 }

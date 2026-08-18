@@ -81,7 +81,16 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 
 ### 4.4 Bibliothèque de projets et presets
 - Sauvegarde/chargement de projets (design + réglages), y compris les projets cartographiques (zone, cadre, couches, réglages par couche).
-- Bibliothèque de presets matériaux (ex : contreplaqué 3mm, MDF, acrylique, cuir) avec puissance/vitesse recommandées, éditable par l'utilisateur.
+- Bibliothèque de presets matériaux, éditable par l'utilisateur. **Un seul preset par défaut au lancement : peuplier 3mm** (le reste de la bibliothèque se construit au fur et à mesure de l'usage).
+
+**Preset par défaut — Peuplier 3mm (valeurs de départ à ajuster par test sur votre machine)**
+
+| Mode | Puissance | Vitesse | Passes |
+|---|---|---|---|
+| Découpe | 70-95 % | 800-1000 mm/min | 2 |
+| Gravure | 45-65 % | 2800-3500 mm/min | 1 |
+
+*Ces valeurs sont des points de départ issus de retours d'expérience communautaires sur laser diode 10-20W, pas une garantie — le réglage réel dépend du lot de bois et de l'usure de la diode. Une mire de test (cf. section 9) reste recommandée à chaque nouvelle plaque.*
 
 ### 4.5 Pilotage machine (contrôle direct)
 - Connexion série USB à la machine (GRBL).
@@ -224,7 +233,5 @@ Liste de contrôle issue des retours d'expérience courants sur la découpe/grav
 
 ## 10. Points ouverts à trancher avec l'utilisateur
 
-- Faut-il prévoir dès le MVP un mode "caméra" (aperçu photo de la pièce sous le laser) ? *(fonctionnalité native Phecda avec sa propre caméra/app)*
-- Quel niveau de bibliothèque de presets par défaut fournir (liste de matériaux de départ) ?
 - Priorité entre USB et Wi-Fi pour le pilotage direct si les deux doivent être supportés à terme.
 - Quelle stratégie de simplification des données OSM (seuils de filtrage par type de voie, niveau de zoom) pour garder un rendu lisible et un temps de gravure raisonnable ?

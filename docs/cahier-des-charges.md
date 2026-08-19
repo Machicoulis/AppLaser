@@ -65,8 +65,9 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 **Export**
 - Chaque layer est généré et exporté séparément (aperçu SVG + G-code dédié) : 3 layers = 3 fichiers = 3 jobs = 3 plaques de matériau (le cadre/titre étant inclus dans l'export du Layer 3, pas de 4ᵉ fichier).
 - Pas de système d'alignement automatisé prévu dans le MVP (cf. décision utilisateur) : l'utilisateur gère lui-même le calage physique des plaques entre elles (un simple contour de référence commun à chaque layer suffit à guider l'empilement).
-- **Implémenté (premier jet)** : export SVG (mm réels) et G-code GRBL (mode laser dynamique M4) par layer, réglages puissance/vitesse/passes séparés gravure/découpe, validation de la zone de travail (400x400mm) côté backend, estimation de la durée.
-  Limitations connues à lever ensuite : le texte (titre/coordonnées) n'est pas encore converti en tracés vectoriels et n'est donc pas inclus dans l'export (cf. section 9) ; les coins arrondis du cadre sont exportés en angles vifs ; pas encore de détection des "îlots" (pièces qui se détacheraient à la découpe) ni de remplissage trame pour les zones de gravure pleine (parcs).
+- **Implémenté** : export SVG (mm réels) et G-code GRBL (mode laser dynamique M4) par layer, réglages puissance/vitesse/passes séparés gravure/découpe, validation de la zone de travail (400x400mm) côté backend, estimation de la durée. Épaisseur de trait exportée fidèle au réglage choisi pour la gravure ; la découpe reste un tracé fin unique (0.1mm), la largeur n'ayant pas de sens pour un chemin vectoriel suivi une fois par le laser.
+- **Texte converti en tracés vectoriels réels** (titre et coordonnées, via une police récupérée depuis Google Fonts et analysée côté client — proxy backend dédié, cf. `/api/font`), plus de texte "live" envoyé à l'export. En mode découpe, chaque lettre est découpée par le vrai contour extérieur de la plaque et seule la portion à l'intérieur est conservée en tracé ouvert (jamais fermé) : un tracé ouvert ne peut pas former une pièce détachée, contrairement à un simple chevauchement entre deux tracés fermés distincts. Limite connue : les contre-formes pleinement fermées (ex. le centre du "O" dans une police non-stencil) peuvent rester de petits îlots isolés — d'où la recommandation des polices stencil pour la découpe, qui n'ont pas ce problème par construction (sauf pour quelques traits secondaires ponctuels des glyphes multi-traits).
+  Limitations connues restantes : les coins arrondis du cadre sont exportés en angles vifs ; pas de remplissage trame pour les zones de gravure pleine (parcs).
 - Réglages puissance/vitesse/passes indépendants par layer, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
 
 **Niveau de détail des données OSM**
@@ -203,7 +204,7 @@ Liste de contrôle issue des retours d'expérience courants sur la découpe/grav
 **Préparation des données / fichiers**
 - [ ] Nettoyer/simplifier les données OSM avant génération : les exports bruts peuvent contenir des milliers de segments inutiles ; filtrer par type de voie et appliquer une tolérance de simplification (ex. Douglas-Peucker).
 - [ ] Détecter et corriger les auto-intersections de tracés issues d'OSM avant conversion en G-code — sinon trajectoires incohérentes ou boucles parasites.
-- [ ] Toujours convertir le texte (titre, coordonnées) en tracés vectoriels (paths) avant export — ne jamais envoyer du texte "live" (police système) au laser.
+- [x] Toujours convertir le texte (titre, coordonnées) en tracés vectoriels (paths) avant export — ne jamais envoyer du texte "live" (police système) au laser.
 
 **Petites pièces isolées ("îlots") et fragilité**
 - [ ] Repérer les éléments qui deviendraient des pièces détachées après découpe (petite île, tronçon de route isolé en bord de plaque) et les fusionner avec une pièce voisine, ou basculer en gravure plutôt qu'en découpe pour ces cas précis.

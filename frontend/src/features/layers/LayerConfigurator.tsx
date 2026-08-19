@@ -14,6 +14,7 @@ import type { WidthSettings } from "../area-preview/AreaPreview";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 import { DraggableText, type TextPosition } from "./DraggableText";
 import { formatSeconds, pathsToSvgString, requestGcode, triggerDownload, type GcodePathSpec, type ModeSettings } from "./gcodeExport";
+import { applyTextTransform, loadFont, textToContours } from "./textToPath";
 import {
   FIXED_OPTIONAL,
   FIXED_STYLE,
@@ -33,8 +34,8 @@ const FONT_GROUPS = [
   {
     label: "Gravure (formes pleines)",
     options: [
-      { value: "Arial, sans-serif", label: "Sans-serif" },
-      { value: "Georgia, serif", label: "Serif" },
+      { value: "'Open Sans', sans-serif", label: "Sans-serif" },
+      { value: "'Playfair Display', serif", label: "Serif" },
     ],
   },
   {
@@ -109,6 +110,21 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   const projBbox = projectionBbox(selection);
   const isRect = selection.shape.type === "rectangle";
 
+  // Contour réel du bord extérieur de la plaque du Layer 3 (le seul tracé de découpe qui existe vraiment autour
+  // de la carte — le contour intérieur affiché en aperçu n'est que décoratif). Angles vifs même pour le rectangle
+  // (l'arrondi éventuel n'est qu'une finition visuelle du bord, cf. limitation connue de l'export).
+  const marginSvg = frameThicknessMm * mmToSvg;
+  const outerW = viewWidth + marginSvg * 2;
+  const outerH = viewHeight + marginSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0);
+  const frameOutline: [number, number][] = isRect
+    ? [
+        [-marginSvg, -marginSvg],
+        [outerW - marginSvg, -marginSvg],
+        [outerW - marginSvg, outerH - marginSvg],
+        [-marginSvg, outerH - marginSvg],
+      ]
+    : offsetShapeOutline(shapeOutline, marginSvg);
+
   // Regroupe les lignes de chaque type de route selon l'affectation choisie à l'étape précédente.
   const layer2Roads: Line[] = Object.entries(data.roads).flatMap(([type, lines]) => (roadAssignment[type] === "layer2" ? lines : []));
   let layer3Roads: Line[] = Object.entries(data.roads).flatMap(([type, lines]) => (roadAssignment[type] === "layer3" ? lines : []));
@@ -128,35 +144,22 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     rotationDeg: 0,
   }));
 
-  // Mode découpe : le texte doit chevaucher le cadre de 1mm (comme les routes principales qui traversent la bordure)
-  // pour rester rattaché au cadre une fois découpé, plutôt que de former des lettres isolées et détachées.
+  // Mode découpe : le texte doit chevaucher le VRAI bord extérieur de la plaque (frameOutline), pas le contour
+  // intérieur décoratif — c'est la seule vraie découpe qui existe autour de la carte. L'ancrage est poussé
+  // 1mm au-delà de ce bord (hors de la plaque) : à l'export, chaque lettre est découpée par ce même bord et
+  // seule la portion à l'intérieur de la plaque est conservée, en tracé OUVERT (pas fermé) — comme pour les
+  // routes qui traversent la bordure. Un tracé ouvert ne peut jamais former un îlot détaché, contrairement à un
+  // simple chevauchement entre deux tracés fermés distincts qui resteraient sans lien réel entre eux.
   function snapToFrame(pos: TextPosition): TextPosition {
     const overlapSvg = 1 * mmToSvg;
-    if (isRect) {
-      const distances = {
-        top: pos.y,
-        bottom: viewHeight - pos.y,
-        left: pos.x,
-        right: viewWidth - pos.x,
-      };
-      const nearestEdge = (Object.entries(distances) as [keyof typeof distances, number][]).reduce((a, b) =>
-        b[1] < a[1] ? b : a
-      )[0];
-      if (nearestEdge === "top") return { ...pos, y: -overlapSvg };
-      if (nearestEdge === "bottom") return { ...pos, y: viewHeight + overlapSvg };
-      if (nearestEdge === "left") return { ...pos, x: -overlapSvg };
-      return { ...pos, x: viewWidth + overlapSvg };
-    }
-    // Cercle/polygone : accroche radiale depuis le centroïde de la forme, jusqu'à la frontière réelle du contour
-    // (un rayon moyen ne convient pas : la projection lat/lng n'est pas isométrique, les sommets ne sont pas équidistants en SVG).
-    const cx = shapeOutline.reduce((sum, [x]) => sum + x, 0) / shapeOutline.length;
-    const cy = shapeOutline.reduce((sum, [, y]) => sum + y, 0) / shapeOutline.length;
+    const cx = frameOutline.reduce((sum, [x]) => sum + x, 0) / frameOutline.length;
+    const cy = frameOutline.reduce((sum, [, y]) => sum + y, 0) / frameOutline.length;
     const dx = pos.x - cx;
     const dy = pos.y - cy;
     const dist = Math.hypot(dx, dy) || 1;
     const ux = dx / dist;
     const uy = dy / dist;
-    const [bx, by] = raycastToPolygon(cx, cy, ux, uy, shapeOutline);
+    const [bx, by] = raycastToPolygon(cx, cy, ux, uy, frameOutline);
     return { ...pos, x: bx + ux * overlapSvg, y: by + uy * overlapSvg };
   }
 
@@ -353,12 +356,12 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     );
   }
 
-  // Convertit un point en coordonnées SVG locales vers des mm plaque-locaux, origine (0,0) en bas à gauche
-  // (axe Y inversé par rapport au SVG pour retrouver la convention habituelle des logiciels de pilotage laser).
-  function toPlateMm([x, y]: [number, number], offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): [number, number] {
-    const mmX = (x + offsetXSvg) / mmToSvg;
-    const mmYFromTop = (y + offsetYSvg) / mmToSvg;
-    return [mmX, plateHeightMm - mmYFromTop];
+  // Convertit un point en coordonnées SVG locales vers des mm plaque-locaux, origine (0,0) en haut à gauche,
+  // axe Y vers le bas — exactement la même orientation que l'aperçu affiché à l'écran (pas d'inversion d'axe :
+  // un texte à l'export doit se lire à l'endroit et rester au même endroit que dans l'aperçu, pas dans une
+  // convention de repère machine supposée mais non vérifiée).
+  function toPlateMm([x, y]: [number, number], offsetXSvg: number, offsetYSvg: number): [number, number] {
+    return [(x + offsetXSvg) / mmToSvg, (y + offsetYSvg) / mmToSvg];
   }
 
   // Découpe une ligne OSM brute par le contour réel de la zone AVANT de la convertir en mm : les données OSM
@@ -371,8 +374,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     mode: GcodePathSpec["mode"],
     widthMm: number,
     offsetXSvg: number,
-    offsetYSvg: number,
-    plateHeightMm: number
+    offsetYSvg: number
   ): GcodePathSpec[] {
     const projected = line.map(([lat, lng]) => project(projBbox, lat, lng, viewWidth, viewHeight));
     const closed = isClosedWay(line);
@@ -382,7 +384,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     return pieces
       .filter((piece) => piece.points.length >= (piece.closed ? 3 : 2))
       .map((piece) => ({
-        points: piece.points.map((p) => toPlateMm(p, offsetXSvg, offsetYSvg, plateHeightMm)),
+        points: piece.points.map((p) => toPlateMm(p, offsetXSvg, offsetYSvg)),
         closed: piece.closed,
         mode,
         widthMm,
@@ -395,7 +397,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   function buildLayerPaths(layerNum: LayerNumber): { paths: GcodePathSpec[]; plateWidthMm: number; plateHeightMm: number } {
     if (layerNum === 1) {
       const plateHeightMm = viewHeight / mmToSvg;
-      const outline = shapeOutline.map((p) => toPlateMm(p, 0, 0, plateHeightMm));
+      const outline = shapeOutline.map((p) => toPlateMm(p, 0, 0));
       return {
         paths: [{ points: outline, closed: true, mode: "decoupe", widthMm: 0 }],
         plateWidthMm: selection.plateWidthMm,
@@ -406,46 +408,79 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
       const plateHeightMm = viewHeight / mmToSvg;
       const paths: GcodePathSpec[] = [];
       if (fixedEnabled.park) {
-        for (const line of data.park) paths.push(...clippedLineToPaths(line, "gravure", FIXED_STYLE.park.defaultWidthMm, 0, 0, plateHeightMm));
+        for (const line of data.park) paths.push(...clippedLineToPaths(line, "gravure", FIXED_STYLE.park.defaultWidthMm, 0, 0));
       }
-      for (const line of data.water) paths.push(...clippedLineToPaths(line, "decoupe", 0, 0, 0, plateHeightMm));
+      for (const line of data.water) paths.push(...clippedLineToPaths(line, "decoupe", 0, 0, 0));
       if (fixedEnabled.railway) {
-        for (const line of data.railway) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.railway, 0, 0, plateHeightMm));
+        for (const line of data.railway) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.railway, 0, 0));
       }
-      for (const line of layer2Roads) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.layer2Road, 0, 0, plateHeightMm));
+      for (const line of layer2Roads) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.layer2Road, 0, 0));
       return { paths, plateWidthMm: selection.plateWidthMm, plateHeightMm };
     }
     // Layer 3 : cadre + routes principales, origine plaque décalée au coin extérieur du cadre.
     // Simplification connue : les coins arrondis du cadre rectangulaire sont exportés en angles vifs pour l'instant.
-    const marginSvg = frameThicknessMm * mmToSvg;
-    const outerW = viewWidth + marginSvg * 2;
-    const outerH = viewHeight + marginSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0);
     const plateWidthMm = outerW / mmToSvg;
     const plateHeightMm = outerH / mmToSvg;
-    const frameOutline: [number, number][] = isRect
-      ? [
-          [-marginSvg, -marginSvg],
-          [outerW - marginSvg, -marginSvg],
-          [outerW - marginSvg, outerH - marginSvg],
-          [-marginSvg, outerH - marginSvg],
-        ]
-      : offsetShapeOutline(shapeOutline, marginSvg);
     const paths: GcodePathSpec[] = [
-      { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg, plateHeightMm)), closed: true, mode: "decoupe", widthMm: 0 },
+      { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg)), closed: true, mode: "decoupe", widthMm: 0 },
     ];
-    for (const line of layer3Roads) paths.push(...clippedLineToPaths(line, "decoupe", 0, marginSvg, marginSvg, plateHeightMm));
+    for (const line of layer3Roads) paths.push(...clippedLineToPaths(line, "decoupe", 0, marginSvg, marginSvg));
     return { paths, plateWidthMm, plateHeightMm };
   }
 
-  async function handleDownloadGcode(layerNum: LayerNumber) {
-    const { paths, plateWidthMm, plateHeightMm } = buildLayerPaths(layerNum);
-    setExportError((prev) => ({ ...prev, [layerNum]: undefined }));
-    if (paths.length === 0) {
-      setExportError((prev) => ({ ...prev, [layerNum]: "Aucun élément à exporter sur ce layer." }));
-      return;
+  // Épaisseur de trait par défaut pour le texte gravé (pas de réglage dédié pour l'instant, cf. limitations).
+  const TEXT_GRAVURE_WIDTH_MM = 0.3;
+
+  // Construit les tracés complets du Layer 3 (cadre + routes principales + titre/coordonnées convertis en
+  // tracés vectoriels réels). En mode découpe, chaque lettre du titre est découpée par le VRAI bord extérieur
+  // de la plaque (frameOutline) — seule la portion à l'intérieur de la plaque est conservée, en tracé OUVERT.
+  // Un tracé ouvert ne peut jamais former d'îlot détaché, contrairement à une simple juxtaposition de deux
+  // tracés fermés distincts qui resteraient sans lien réel entre eux même en se chevauchant de quelques mm.
+  async function buildLayer3ExportPaths(): Promise<{ paths: GcodePathSpec[]; plateWidthMm: number; plateHeightMm: number }> {
+    const plateWidthMm = outerW / mmToSvg;
+    const plateHeightMm = outerH / mmToSvg;
+    const toMm = (p: [number, number]) => toPlateMm(p, marginSvg, marginSvg);
+
+    const roadPaths: GcodePathSpec[] = [];
+    for (const line of layer3Roads) roadPaths.push(...clippedLineToPaths(line, "decoupe", 0, marginSvg, marginSvg));
+
+    const framePaths: GcodePathSpec[] = [{ points: frameOutline.map(toMm), closed: true, mode: "decoupe", widthMm: 0 }];
+    const textPaths: GcodePathSpec[] = [];
+
+    if (cityName.trim()) {
+      const titleFont = await loadFont(font, fontWeight);
+      const localContours = textToContours(titleFont, cityName.toUpperCase(), 0, 0, titleSizeMm * mmToSvg);
+      const worldContours = localContours.map((ring) => ring.map((p) => applyTextTransform(p, titlePos.x, titlePos.y, titlePos.rotationDeg)));
+
+      if (titleMode === "decoupe") {
+        for (const ring of worldContours) {
+          for (const clipped of clipPolylineToConvexPolygon([...ring, ring[0]], frameOutline)) {
+            textPaths.push({ points: clipped.map(toMm), closed: false, mode: "decoupe", widthMm: 0 });
+          }
+        }
+      } else {
+        for (const ring of worldContours) textPaths.push({ points: ring.map(toMm), closed: true, mode: "gravure", widthMm: TEXT_GRAVURE_WIDTH_MM });
+      }
     }
+
+    if (showCoordinates && coordinatesText.trim()) {
+      const coordsFontLoaded = await loadFont(coordsFont, coordsFontWeight);
+      const localContours = textToContours(coordsFontLoaded, coordinatesText, 0, 0, titleSizeMm * mmToSvg * 0.55);
+      for (const ring of localContours) {
+        const worldRing = ring.map((p) => applyTextTransform(p, coordsPos.x, coordsPos.y, coordsPos.rotationDeg));
+        textPaths.push({ points: worldRing.map(toMm), closed: true, mode: "gravure", widthMm: TEXT_GRAVURE_WIDTH_MM });
+      }
+    }
+
+    return { paths: [...framePaths, ...roadPaths, ...textPaths], plateWidthMm, plateHeightMm };
+  }
+
+  async function handleDownloadGcode(layerNum: LayerNumber) {
+    setExportError((prev) => ({ ...prev, [layerNum]: undefined }));
     setExportLoading((prev) => ({ ...prev, [layerNum]: true }));
     try {
+      const { paths, plateWidthMm, plateHeightMm } = layerNum === 3 ? await buildLayer3ExportPaths() : buildLayerPaths(layerNum);
+      if (paths.length === 0) throw new Error("Aucun élément à exporter sur ce layer.");
       const { gcode, estimatedSeconds } = await requestGcode(paths, plateWidthMm, plateHeightMm, sMax, gravureSettings, decoupeSettings);
       triggerDownload(new Blob([gcode], { type: "text/plain" }), `applaser-layer${layerNum}.gcode`);
       setExportInfo((prev) => ({ ...prev, [layerNum]: `${paths.length} tracés — durée estimée ${formatSeconds(estimatedSeconds)}` }));
@@ -456,13 +491,15 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     }
   }
 
-  function handleDownloadSvg(layerNum: LayerNumber) {
-    const { paths, plateWidthMm, plateHeightMm } = buildLayerPaths(layerNum);
-    if (paths.length === 0) {
-      setExportError((prev) => ({ ...prev, [layerNum]: "Aucun élément à exporter sur ce layer." }));
-      return;
+  async function handleDownloadSvg(layerNum: LayerNumber) {
+    setExportError((prev) => ({ ...prev, [layerNum]: undefined }));
+    try {
+      const { paths, plateWidthMm, plateHeightMm } = layerNum === 3 ? await buildLayer3ExportPaths() : buildLayerPaths(layerNum);
+      if (paths.length === 0) throw new Error("Aucun élément à exporter sur ce layer.");
+      triggerDownload(new Blob([pathsToSvgString(paths, plateWidthMm, plateHeightMm)], { type: "image/svg+xml" }), `applaser-layer${layerNum}.svg`);
+    } catch (err) {
+      setExportError((prev) => ({ ...prev, [layerNum]: err instanceof Error ? err.message : "Erreur inconnue" }));
     }
-    triggerDownload(new Blob([pathsToSvgString(paths, plateWidthMm, plateHeightMm)], { type: "image/svg+xml" }), `applaser-layer${layerNum}.svg`);
   }
 
   return (
@@ -740,8 +777,9 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
         {tab === "export" && (
           <div className="layer-configurator__section">
             <p className="layer-configurator__hint">
-              Le texte (titre, coordonnées) n'est pas encore inclus dans l'export — à graver manuellement en attendant la
-              conversion police → tracés vectoriels. Les coins arrondis du cadre sont exportés en angles vifs pour l'instant.
+              Le titre et les coordonnées sont convertis en tracés vectoriels au moment du téléchargement (Layer 3) — en
+              mode découpe, le titre est fusionné géométriquement avec le cadre pour ne pas se détacher à la découpe.
+              Limitation connue : les coins arrondis du cadre sont exportés en angles vifs pour l'instant.
             </p>
 
             <fieldset>
@@ -822,10 +860,13 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
 
             {([1, 2, 3] as LayerNumber[]).map((layerNum) => {
               const { paths } = buildLayerPaths(layerNum);
+              const hasText = layerNum === 3 && (cityName.trim() || (showCoordinates && coordinatesText.trim()));
               return (
                 <fieldset key={layerNum}>
                   <legend>Layer {layerNum}</legend>
-                  <p className="layer-configurator__hint">{paths.length} tracé(s) à exporter.</p>
+                  <p className="layer-configurator__hint">
+                    {paths.length} tracé(s) à exporter{hasText ? " + titre/coordonnées (convertis en tracés au téléchargement)" : ""}.
+                  </p>
                   <div className="layer-configurator__export-actions">
                     <button type="button" onClick={() => handleDownloadSvg(layerNum)} disabled={paths.length === 0}>
                       Télécharger le SVG

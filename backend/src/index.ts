@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import fontRouter from "./routes/font.js";
 import gcodeRouter from "./routes/gcode.js";
 import geocodeRouter from "./routes/geocode.js";
 import mapdataRouter from "./routes/mapdata.js";
@@ -23,6 +24,7 @@ app.use("/api/mapdata", mapdataRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/presets", presetsRouter);
 app.use("/api/gcode", gcodeRouter);
+app.use("/api/font", fontRouter);
 
 app.listen(PORT, () => {
   console.log(`Backend AppLaser en écoute sur http://localhost:${PORT}`);

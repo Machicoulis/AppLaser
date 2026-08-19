@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { clipPolygonToConvexPolygon, clipPolylineToConvexPolygon } from "../area-preview/clip";
 import {
   computeViewBoxSize,
   isClosedWay,
@@ -360,8 +361,24 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     return [mmX, plateHeightMm - mmYFromTop];
   }
 
-  function projectLineMm(line: Line, offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): [number, number][] {
-    return line.map(([lat, lng]) => toPlateMm(project(projBbox, lat, lng, viewWidth, viewHeight), offsetXSvg, offsetYSvg, plateHeightMm));
+  // Découpe une ligne OSM brute par le contour réel de la zone AVANT de la convertir en mm : les données OSM
+  // dépassent souvent largement la zone choisie (Overpass renvoie des tronçons entiers), et contrairement à
+  // l'aperçu à l'écran (qui ne fait que masquer visuellement le dépassement via un clipPath SVG), un export
+  // doit contenir des tracés réellement coupés à la frontière — sinon le laser reçoit des trajets qui partent
+  // loin hors de la plaque.
+  function clippedLineToPaths(line: Line, mode: GcodePathSpec["mode"], offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): GcodePathSpec[] {
+    const projected = line.map(([lat, lng]) => project(projBbox, lat, lng, viewWidth, viewHeight));
+    const closed = isClosedWay(line);
+    const pieces: { points: [number, number][]; closed: boolean }[] = closed
+      ? [{ points: clipPolygonToConvexPolygon(projected, shapeOutline), closed: true }]
+      : clipPolylineToConvexPolygon(projected, shapeOutline).map((points) => ({ points, closed: false }));
+    return pieces
+      .filter((piece) => piece.points.length >= (piece.closed ? 3 : 2))
+      .map((piece) => ({
+        points: piece.points.map((p) => toPlateMm(p, offsetXSvg, offsetYSvg, plateHeightMm)),
+        closed: piece.closed,
+        mode,
+      }));
   }
 
   // Construit les tracés exportables (G-code/SVG) d'un layer, en mm réels, indépendamment de l'onglet affiché.
@@ -377,13 +394,13 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
       const plateHeightMm = viewHeight / mmToSvg;
       const paths: GcodePathSpec[] = [];
       if (fixedEnabled.park) {
-        for (const line of data.park) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+        for (const line of data.park) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
       }
-      for (const line of data.water) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "decoupe" });
+      for (const line of data.water) paths.push(...clippedLineToPaths(line, "decoupe", 0, 0, plateHeightMm));
       if (fixedEnabled.railway) {
-        for (const line of data.railway) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+        for (const line of data.railway) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
       }
-      for (const line of layer2Roads) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+      for (const line of layer2Roads) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
       return { paths, plateWidthMm: selection.plateWidthMm, plateHeightMm };
     }
     // Layer 3 : cadre + routes principales, origine plaque décalée au coin extérieur du cadre.
@@ -404,7 +421,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     const paths: GcodePathSpec[] = [
       { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg, plateHeightMm)), closed: true, mode: "decoupe" },
     ];
-    for (const line of layer3Roads) paths.push({ points: projectLineMm(line, marginSvg, marginSvg, plateHeightMm), closed: isClosedWay(line), mode: "decoupe" });
+    for (const line of layer3Roads) paths.push(...clippedLineToPaths(line, "decoupe", marginSvg, marginSvg, plateHeightMm));
     return { paths, plateWidthMm, plateHeightMm };
   }
 

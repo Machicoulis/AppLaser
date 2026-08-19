@@ -89,6 +89,24 @@
   flex-shrink: 0;
 }
 
+.area-preview__mode {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.area-preview__mode--gravure {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.area-preview__mode--decoupe {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .area-preview__canvas {
   flex: 1;
   display: flex;

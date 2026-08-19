@@ -6,24 +6,24 @@ import "./area-preview.css";
 type WayCategory = "majorRoad" | "minorRoad" | "path" | "water" | "park" | "railway";
 type LayerLines = Record<WayCategory, [number, number][][]>;
 
+type FillMode = "gravure" | "decoupe";
+
 const LAYER_STYLE: Record<
   WayCategory,
-  { label: string; stroke: string; fill?: string; defaultWidthMm: number; dash?: string; fillMode?: "gravure" | "decoupe" }
+  { label: string; stroke: string; fill?: string; defaultWidthMm: number; dash?: string; mode: FillMode; areaFill?: boolean }
 > = {
-  majorRoad: { label: "Grands axes routiers", stroke: "#1f2937", defaultWidthMm: 2 },
-  minorRoad: { label: "Routes secondaires", stroke: "#6b7280", defaultWidthMm: 0.6 },
-  path: { label: "Chemins / allées", stroke: "#9ca3af", defaultWidthMm: 0.3, dash: "2,2" },
-  // découpe traversante pleine : le trou laisse apparaître le Layer 1 (fond) en dessous, pas de contour réglable
-  water: { label: "Plans d'eau", stroke: "#3b82f6", fill: "#93c5fd", defaultWidthMm: 0.3, fillMode: "decoupe" },
-  // gravure pleine : toute la surface est gravée, pas de contour réglable
-  park: { label: "Parcs", stroke: "#22c55e", fill: "#bbf7d0", defaultWidthMm: 0.3, fillMode: "gravure" },
-  railway: { label: "Voies ferrées", stroke: "#78350f", defaultWidthMm: 0.5, dash: "4,2" },
+  // Layer 3 : découpe uniquement des grands axes
+  majorRoad: { label: "Grands axes routiers", stroke: "#1f2937", defaultWidthMm: 2, mode: "decoupe" },
+  // Layer 2 : gravure des routes secondaires, chemins, voies ferrées, parcs
+  minorRoad: { label: "Routes secondaires", stroke: "#6b7280", defaultWidthMm: 0.6, mode: "gravure" },
+  path: { label: "Chemins / allées", stroke: "#9ca3af", defaultWidthMm: 0.3, dash: "2,2", mode: "gravure" },
+  railway: { label: "Voies ferrées", stroke: "#78350f", defaultWidthMm: 0.5, dash: "4,2", mode: "gravure" },
+  park: { label: "Parcs", stroke: "#22c55e", fill: "#bbf7d0", defaultWidthMm: 0.3, mode: "gravure", areaFill: true },
+  // Layer 2 : découpe traversante pleine des plans d'eau, laisse apparaître le Layer 1 (fond) en dessous
+  water: { label: "Plans d'eau", stroke: "#3b82f6", fill: "#93c5fd", defaultWidthMm: 0.3, mode: "decoupe", areaFill: true },
 };
 
-const FILL_MODE_LABEL: Record<"gravure" | "decoupe", string> = {
-  gravure: "gravure pleine",
-  decoupe: "découpe pleine",
-};
+const MODE_LABEL: Record<FillMode, string> = { gravure: "gravure", decoupe: "découpe" };
 
 function defaultWidths(): Record<WayCategory, number> {
   return Object.fromEntries(
@@ -97,29 +97,33 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
 
         {layers && (
           <ul className="area-preview__legend">
-            {LAYER_ORDER.map((cat) => (
-              <li key={cat}>
-                <span className="area-preview__swatch" style={{ background: LAYER_STYLE[cat].fill ?? LAYER_STYLE[cat].stroke }} />
-                <span className="area-preview__legend-label">
-                  {LAYER_STYLE[cat].label} ({layers[cat].length})
-                </span>
-                {LAYER_STYLE[cat].fillMode ? (
-                  <span className="area-preview__fill-only">{FILL_MODE_LABEL[LAYER_STYLE[cat].fillMode!]}</span>
-                ) : (
-                  <label className="area-preview__width-input">
-                    <input
-                      type="number"
-                      min={0.1}
-                      max={5}
-                      step={0.1}
-                      value={widthsMm[cat]}
-                      onChange={(e) => handleWidthChange(cat, Number(e.target.value))}
-                    />
-                    mm
-                  </label>
-                )}
-              </li>
-            ))}
+            {LAYER_ORDER.map((cat) => {
+              const style = LAYER_STYLE[cat];
+              return (
+                <li key={cat}>
+                  <span className="area-preview__swatch" style={{ background: style.fill ?? style.stroke }} />
+                  <span className="area-preview__legend-label">
+                    {style.label} ({layers[cat].length})
+                  </span>
+                  <span className={`area-preview__mode area-preview__mode--${style.mode}`}>{MODE_LABEL[style.mode]}</span>
+                  {style.areaFill ? (
+                    <span className="area-preview__fill-only">pleine</span>
+                  ) : (
+                    <label className="area-preview__width-input">
+                      <input
+                        type="number"
+                        min={0.1}
+                        max={5}
+                        step={0.1}
+                        value={widthsMm[cat]}
+                        onChange={(e) => handleWidthChange(cat, Number(e.target.value))}
+                      />
+                      mm
+                    </label>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </aside>
@@ -140,8 +144,8 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
                       key={`${cat}-${i}`}
                       points={pointsToSvg(projected)}
                       fill={style.fill}
-                      stroke={style.fillMode ? "none" : style.stroke}
-                      strokeWidth={style.fillMode ? 0 : strokeWidth * 0.5}
+                      stroke={style.areaFill ? "none" : style.stroke}
+                      strokeWidth={style.areaFill ? 0 : strokeWidth * 0.5}
                     />
                   );
                 }

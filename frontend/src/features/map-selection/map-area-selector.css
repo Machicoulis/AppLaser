@@ -98,16 +98,16 @@
   border-color: #2563eb;
 }
 
-.map-area-selector__polygon-controls {
+.map-area-selector__sides-input {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+  font-size: 0.9rem;
 }
 
-.map-area-selector__hint {
-  font-size: 0.85rem;
-  color: #555;
-  margin: 0;
+.map-area-selector__sides-input input {
+  width: 4rem;
 }
 
 .map-area-selector__map {

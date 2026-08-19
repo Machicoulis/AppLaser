@@ -3,14 +3,24 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import { AddressSearch } from "./AddressSearch";
 import { CircleSelectionOverlay } from "./CircleSelectionOverlay";
-import { computeBounds, computeCircleBounds, computePolygonBounds, formatDistance, type BoundingBox, type LatLng } from "./geo";
-import { PolygonSelectionOverlay } from "./PolygonSelectionOverlay";
+import {
+  computeBounds,
+  computeCircleBounds,
+  computePolygonBounds,
+  computeRegularPolygonPoints,
+  formatDistance,
+  type BoundingBox,
+  type LatLng,
+} from "./geo";
+import { RegularPolygonSelectionOverlay } from "./RegularPolygonSelectionOverlay";
 import { SelectionOverlay } from "./SelectionOverlay";
 import "./map-area-selector.css";
 
 const DEFAULT_CENTER: LatLng = { lat: 45.1847, lng: 9.1582 }; // Pavia, exemple de référence du cahier des charges
 const DEFAULT_ZOOM = 15;
 const MAX_PLATE_MM = 400; // zone de travail max de l'Elegoo Phecda
+const MIN_POLYGON_SIDES = 3;
+const MAX_POLYGON_SIDES = 12;
 
 type ShapeMode = "rectangle" | "circle" | "polygon";
 
@@ -25,7 +35,7 @@ function MapController({ target }: { target: LatLng | null }) {
 export type ShapeInfo =
   | { type: "rectangle" }
   | { type: "circle"; center: LatLng; radiusM: number }
-  | { type: "polygon"; points: LatLng[] };
+  | { type: "polygon"; points: LatLng[]; sides: number };
 
 export interface AreaSelection {
   bbox: BoundingBox;
@@ -52,9 +62,10 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
   const [circleCenter, setCircleCenter] = useState<LatLng>(DEFAULT_CENTER);
   const [radiusM, setRadiusM] = useState(250);
 
-  // polygone
-  const [polygonPoints, setPolygonPoints] = useState<LatLng[]>([]);
-  const [isDrawingPolygon, setIsDrawingPolygon] = useState(true);
+  // polygone régulier
+  const [polygonCenter, setPolygonCenter] = useState<LatLng>(DEFAULT_CENTER);
+  const [polygonRadiusM, setPolygonRadiusM] = useState(250);
+  const [polygonSides, setPolygonSides] = useState(3);
 
   const aspectRatio = plateWidthMm / plateHeightMm;
   const rectHeightM = rectWidthM / aspectRatio;
@@ -68,24 +79,16 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
     bbox = computeCircleBounds(circleCenter, radiusM);
     shape = { type: "circle", center: circleCenter, radiusM };
   } else {
-    bbox = polygonPoints.length >= 3 ? computePolygonBounds(polygonPoints) : computeBounds(DEFAULT_CENTER, 1, 1);
-    shape = { type: "polygon", points: polygonPoints };
+    const points = computeRegularPolygonPoints(polygonCenter, polygonRadiusM, polygonSides);
+    bbox = computePolygonBounds(points);
+    shape = { type: "polygon", points, sides: polygonSides };
   }
-
-  const canConfirm = shapeMode !== "polygon" || polygonPoints.length >= 3;
 
   function handleAddressSelect(newCenter: LatLng) {
     setFlyTarget(newCenter);
     if (shapeMode === "rectangle") setRectCenter(newCenter);
     if (shapeMode === "circle") setCircleCenter(newCenter);
-  }
-
-  function handleAddPolygonPoint(point: LatLng) {
-    setPolygonPoints((prev) => [...prev, point]);
-  }
-
-  function handleMovePolygonPoint(index: number, point: LatLng) {
-    setPolygonPoints((prev) => prev.map((p, i) => (i === index ? point : p)));
+    if (shapeMode === "polygon") setPolygonCenter(newCenter);
   }
 
   function handleShapeModeChange(mode: ShapeMode) {
@@ -123,21 +126,18 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
         </fieldset>
 
         {shapeMode === "polygon" && (
-          <div className="map-area-selector__polygon-controls">
-            <p className="map-area-selector__hint">
-              {isDrawingPolygon
-                ? "Cliquez sur la carte pour placer les points du contour."
-                : "Faites glisser les points pour ajuster le contour."}
-            </p>
-            <div className="map-area-selector__shape-buttons">
-              <button type="button" onClick={() => setIsDrawingPolygon((d) => !d)}>
-                {isDrawingPolygon ? "Terminer le tracé" : "Reprendre le tracé"}
-              </button>
-              <button type="button" onClick={() => setPolygonPoints([])}>
-                Effacer
-              </button>
-            </div>
-          </div>
+          <label className="map-area-selector__sides-input">
+            Nombre de côtés
+            <input
+              type="number"
+              min={MIN_POLYGON_SIDES}
+              max={MAX_POLYGON_SIDES}
+              value={polygonSides}
+              onChange={(e) =>
+                setPolygonSides(Math.min(MAX_POLYGON_SIDES, Math.max(MIN_POLYGON_SIDES, Number(e.target.value))))
+              }
+            />
+          </label>
         )}
 
         <fieldset>
@@ -187,19 +187,16 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
             </>
           )}
           {shapeMode === "polygon" && (
-            <p>
-              {polygonPoints.length} point{polygonPoints.length > 1 ? "s" : ""} placé{polygonPoints.length > 1 ? "s" : ""}
-              {polygonPoints.length < 3 && " (3 minimum)"}
-            </p>
+            <>
+              <p>
+                Rayon réel : <strong>{formatDistance(polygonRadiusM)}</strong> ({polygonSides} côtés)
+              </p>
+              <p>Échelle ≈ 1:{Math.round(((polygonRadiusM * 2) / plateWidthMm) * 1000)}</p>
+            </>
           )}
         </div>
 
-        <button
-          type="button"
-          className="map-area-selector__confirm"
-          disabled={!canConfirm}
-          onClick={() => onConfirm({ bbox, plateWidthMm, plateHeightMm, shape })}
-        >
+        <button type="button" className="map-area-selector__confirm" onClick={() => onConfirm({ bbox, plateWidthMm, plateHeightMm, shape })}>
           Confirmer la zone
         </button>
       </aside>
@@ -229,11 +226,12 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
             />
           )}
           {shapeMode === "polygon" && (
-            <PolygonSelectionOverlay
-              points={polygonPoints}
-              drawing={isDrawingPolygon}
-              onAddPoint={handleAddPolygonPoint}
-              onMovePoint={handleMovePolygonPoint}
+            <RegularPolygonSelectionOverlay
+              center={polygonCenter}
+              radiusM={polygonRadiusM}
+              sides={polygonSides}
+              onCenterChange={setPolygonCenter}
+              onRadiusChange={setPolygonRadiusM}
             />
           )}
         </MapContainer>
@@ -241,4 +239,3 @@ export function MapAreaSelector({ onConfirm }: MapAreaSelectorProps) {
     </div>
   );
 }
-

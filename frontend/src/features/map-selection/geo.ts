@@ -36,7 +36,17 @@ export function computeCircleBounds(center: LatLng, radiusM: number): BoundingBo
   return computeBounds(center, radiusM * 2, radiusM * 2);
 }
 
-/** Bbox englobant une liste de points (polygone libre). */
+/** Sommets d'un polygone régulier (équilatéral) : triangle, carré, pentagone, etc. selon `sides`. */
+export function computeRegularPolygonPoints(center: LatLng, radiusM: number, sides: number): LatLng[] {
+  const points: LatLng[] = [];
+  for (let i = 0; i < sides; i++) {
+    const angleDeg = 90 + (360 / sides) * i; // premier sommet pointé vers le nord (base à plat en bas pour un triangle)
+    points.push(pointAtDistance(center, radiusM, angleDeg));
+  }
+  return points;
+}
+
+/** Bbox englobant une liste de points (polygone). */
 export function computePolygonBounds(points: LatLng[]): BoundingBox {
   const lats = points.map((p) => p.lat);
   const lngs = points.map((p) => p.lng);

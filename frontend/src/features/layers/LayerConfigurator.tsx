@@ -366,7 +366,14 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   // l'aperçu à l'écran (qui ne fait que masquer visuellement le dépassement via un clipPath SVG), un export
   // doit contenir des tracés réellement coupés à la frontière — sinon le laser reçoit des trajets qui partent
   // loin hors de la plaque.
-  function clippedLineToPaths(line: Line, mode: GcodePathSpec["mode"], offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): GcodePathSpec[] {
+  function clippedLineToPaths(
+    line: Line,
+    mode: GcodePathSpec["mode"],
+    widthMm: number,
+    offsetXSvg: number,
+    offsetYSvg: number,
+    plateHeightMm: number
+  ): GcodePathSpec[] {
     const projected = line.map(([lat, lng]) => project(projBbox, lat, lng, viewWidth, viewHeight));
     const closed = isClosedWay(line);
     const pieces: { points: [number, number][]; closed: boolean }[] = closed
@@ -378,6 +385,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
         points: piece.points.map((p) => toPlateMm(p, offsetXSvg, offsetYSvg, plateHeightMm)),
         closed: piece.closed,
         mode,
+        widthMm,
       }));
   }
 
@@ -388,19 +396,23 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     if (layerNum === 1) {
       const plateHeightMm = viewHeight / mmToSvg;
       const outline = shapeOutline.map((p) => toPlateMm(p, 0, 0, plateHeightMm));
-      return { paths: [{ points: outline, closed: true, mode: "decoupe" }], plateWidthMm: selection.plateWidthMm, plateHeightMm };
+      return {
+        paths: [{ points: outline, closed: true, mode: "decoupe", widthMm: 0 }],
+        plateWidthMm: selection.plateWidthMm,
+        plateHeightMm,
+      };
     }
     if (layerNum === 2) {
       const plateHeightMm = viewHeight / mmToSvg;
       const paths: GcodePathSpec[] = [];
       if (fixedEnabled.park) {
-        for (const line of data.park) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
+        for (const line of data.park) paths.push(...clippedLineToPaths(line, "gravure", FIXED_STYLE.park.defaultWidthMm, 0, 0, plateHeightMm));
       }
-      for (const line of data.water) paths.push(...clippedLineToPaths(line, "decoupe", 0, 0, plateHeightMm));
+      for (const line of data.water) paths.push(...clippedLineToPaths(line, "decoupe", 0, 0, 0, plateHeightMm));
       if (fixedEnabled.railway) {
-        for (const line of data.railway) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
+        for (const line of data.railway) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.railway, 0, 0, plateHeightMm));
       }
-      for (const line of layer2Roads) paths.push(...clippedLineToPaths(line, "gravure", 0, 0, plateHeightMm));
+      for (const line of layer2Roads) paths.push(...clippedLineToPaths(line, "gravure", widthsMm.layer2Road, 0, 0, plateHeightMm));
       return { paths, plateWidthMm: selection.plateWidthMm, plateHeightMm };
     }
     // Layer 3 : cadre + routes principales, origine plaque décalée au coin extérieur du cadre.
@@ -419,9 +431,9 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
         ]
       : offsetShapeOutline(shapeOutline, marginSvg);
     const paths: GcodePathSpec[] = [
-      { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg, plateHeightMm)), closed: true, mode: "decoupe" },
+      { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg, plateHeightMm)), closed: true, mode: "decoupe", widthMm: 0 },
     ];
-    for (const line of layer3Roads) paths.push(...clippedLineToPaths(line, "decoupe", marginSvg, marginSvg, plateHeightMm));
+    for (const line of layer3Roads) paths.push(...clippedLineToPaths(line, "decoupe", 0, marginSvg, marginSvg, plateHeightMm));
     return { paths, plateWidthMm, plateHeightMm };
   }
 

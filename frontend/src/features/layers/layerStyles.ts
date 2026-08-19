@@ -1,3 +1,5 @@
+import { distanceMeters, type LatLng } from "../map-selection/geo";
+
 export type WayCategory = "majorRoad" | "minorRoad" | "path" | "water" | "park" | "railway";
 export type LayerLines = Record<WayCategory, [number, number][][]>;
 export type FillMode = "gravure" | "decoupe";
@@ -36,4 +38,17 @@ export function defaultWidths(): Record<WayCategory, number> {
     WayCategory,
     number
   >;
+}
+
+/** Taille d'un tracé (diagonale de sa boîte englobante, en mètres) — sert de filtre pour exclure les petits éléments (ex. mares). */
+export function lineSizeMeters(points: [number, number][]): number {
+  const lats = points.map((p) => p[0]);
+  const lngs = points.map((p) => p[1]);
+  const sw: LatLng = { lat: Math.min(...lats), lng: Math.min(...lngs) };
+  const ne: LatLng = { lat: Math.max(...lats), lng: Math.max(...lngs) };
+  return distanceMeters(sw, ne);
+}
+
+export function filterBySize(lines: [number, number][][], minSizeM: number): [number, number][][] {
+  return lines.filter((line) => lineSizeMeters(line) >= minSizeM);
 }

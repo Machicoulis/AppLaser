@@ -146,6 +146,32 @@
   width: 8rem;
 }
 
+.layer-configurator__fallback-note {
+  font-size: 0.8rem;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin: 0;
+}
+
+.draggable-text__hit-area {
+  cursor: move;
+}
+
+.draggable-text__rotate-handle {
+  fill: #2563eb;
+  stroke: white;
+  stroke-width: 1;
+  cursor: grab;
+}
+
+.draggable-text__rotate-guide {
+  stroke: #93c5fd;
+  stroke-width: 1;
+  stroke-dasharray: 2, 2;
+}
+
 .layer-configurator__canvas {
   flex: 1;
   display: flex;

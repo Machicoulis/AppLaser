@@ -16,6 +16,21 @@
   gap: 0.75rem;
 }
 
+.area-preview__min-size {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  background: #f3f4f6;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.area-preview__min-size input {
+  width: 4rem;
+}
+
 .area-preview__continue {
   padding: 0.6rem;
   background: #2563eb;

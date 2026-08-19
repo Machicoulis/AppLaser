@@ -1,15 +1,29 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { computeViewBoxSize, isClosedWay, offsetShapeOutline, pointsToSvg, project, projectShapeOutline } from "../area-preview/project";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
+import { DraggableText, type TextPosition } from "./DraggableText";
 import { LAYER2_OPTIONAL, LAYER_STYLE, MODE_LABEL, type LayerLines, type WayCategory } from "./layerStyles";
 import "./layer-configurator.css";
 
 type Tab = "layer1" | "layer2" | "layer3";
 
-const FONT_OPTIONS = [
-  { value: "Arial, sans-serif", label: "Sans-serif (gravure pleine)" },
-  { value: "Georgia, serif", label: "Serif (gravure pleine)" },
-  { value: "'Courier New', monospace", label: "Mono-trait (adapté découpe)" },
+const FONT_GROUPS = [
+  {
+    label: "Gravure (formes pleines)",
+    options: [
+      { value: "Arial, sans-serif", label: "Sans-serif" },
+      { value: "Georgia, serif", label: "Serif" },
+    ],
+  },
+  {
+    label: "Découpe (polices stencil, sans îlot)",
+    options: [
+      { value: "'Allerta Stencil', sans-serif", label: "Allerta Stencil" },
+      { value: "'Saira Stencil One', sans-serif", label: "Saira Stencil One" },
+      { value: "'Stardos Stencil', cursive", label: "Stardos Stencil" },
+      { value: "'Big Shoulders Stencil Display', sans-serif", label: "Big Shoulders Stencil" },
+    ],
+  },
 ];
 
 // Épaisseur fixe du cadre autour de la carte — pas encore configurable, cf. limitations en fin de développement.
@@ -23,12 +37,13 @@ interface LayerConfiguratorProps {
 }
 
 export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }: LayerConfiguratorProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
   const [tab, setTab] = useState<Tab>("layer1");
   const [widthsMm, setWidthsMm] = useState(initialWidthsMm);
   const [layer2Enabled, setLayer2Enabled] = useState<Record<string, boolean>>({ park: true, railway: true, path: true });
 
   const [cityName, setCityName] = useState("");
-  const [font, setFont] = useState(FONT_OPTIONS[0].value);
+  const [font, setFont] = useState(FONT_GROUPS[0].options[0].value);
   const [titleSizeMm, setTitleSizeMm] = useState(12);
   const [outerRadiusMm, setOuterRadiusMm] = useState(8);
   const [innerRadiusMm, setInnerRadiusMm] = useState(4);
@@ -38,6 +53,22 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
   const mmToSvg = viewWidth / selection.plateWidthMm;
   const shapeOutline = projectShapeOutline(selection, viewWidth, viewHeight);
   const isRect = selection.shape.type === "rectangle";
+
+  // Positions par défaut du titre/coordonnées : sous la carte, dans la marge du cadre — ajustées une fois puis laissées à l'utilisateur.
+  const [titlePos, setTitlePos] = useState<TextPosition>(() => ({
+    x: viewWidth / 2,
+    y: viewHeight + FRAME_THICKNESS_MM * mmToSvg * 0.65,
+    rotationDeg: 0,
+  }));
+  const [coordsPos, setCoordsPos] = useState<TextPosition>(() => ({
+    x: viewWidth / 2,
+    y: viewHeight + FRAME_THICKNESS_MM * mmToSvg * 0.65 + titleSizeMm * mmToSvg * 1.4,
+    rotationDeg: 0,
+  }));
+
+  // Pas de grand axe routier dans la zone : les routes secondaires servent de repli en découpe, sinon le Layer 3 serait vide de routes.
+  const majorRoadFallback = layers.majorRoad.length === 0 && layers.minorRoad.length > 0;
+  const layer3Roads = majorRoadFallback ? layers.minorRoad : layers.majorRoad;
 
   function handleWidthChange(cat: WayCategory, mm: number) {
     setWidthsMm((prev) => ({ ...prev, [cat]: mm }));
@@ -130,31 +161,24 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
             <polygon points={pointsToSvg(shapeOutline)} />
           </clipPath>
         </defs>
-        <g clipPath="url(#layer3-clip)">{layers.majorRoad.map((line, i) => renderLine("majorRoad", line, i))}</g>
+        <g clipPath="url(#layer3-clip)">{layer3Roads.map((line, i) => renderLine("majorRoad", line, i))}</g>
 
         {cityName && (
-          <text
-            x={viewWidth / 2}
-            y={viewHeight + marginSvg * 0.65}
-            textAnchor="middle"
-            fontFamily={font}
-            fontSize={titleSizeSvg}
-            fill="#1f2937"
-          >
+          <DraggableText svgRef={svgRef} position={titlePos} onChange={setTitlePos} fontFamily={font} fontSize={titleSizeSvg} fill="#1f2937">
             {cityName.toUpperCase()}
-          </text>
+          </DraggableText>
         )}
         {showCoordinates && (
-          <text
-            x={viewWidth / 2}
-            y={viewHeight + marginSvg * 0.65 + titleSizeSvg * 1.4}
-            textAnchor="middle"
+          <DraggableText
+            svgRef={svgRef}
+            position={coordsPos}
+            onChange={setCoordsPos}
             fontFamily={font}
             fontSize={titleSizeSvg * 0.55}
             fill="#4b5563"
           >
             {coordinatesText}
-          </text>
+          </DraggableText>
         )}
       </>
     );
@@ -242,9 +266,16 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
               />
               mm — {LAYER_STYLE.majorRoad.label}
             </label>
+            {majorRoadFallback && (
+              <p className="layer-configurator__fallback-note">
+                Aucun grand axe routier dans cette zone : les routes secondaires sont utilisées en découpe à la place, pour
+                que le Layer 3 ne reste pas vide.
+              </p>
+            )}
 
             <fieldset>
               <legend>Cadre et titre</legend>
+              <p className="layer-configurator__hint">Faites glisser le texte pour le déplacer, la poignée ronde au-dessus pour l'orienter.</p>
               <label>
                 Nom de la ville
                 <input type="text" value={cityName} onChange={(e) => setCityName(e.target.value)} placeholder="ex. Pavia" />
@@ -252,10 +283,14 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
               <label>
                 Police
                 <select value={font} onChange={(e) => setFont(e.target.value)}>
-                  {FONT_OPTIONS.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
+                  {FONT_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.options.map((f) => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </label>
@@ -297,9 +332,13 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
       </aside>
 
       <div className="layer-configurator__canvas">
-        <svg viewBox={`${-FRAME_THICKNESS_MM * mmToSvg - 10} ${-FRAME_THICKNESS_MM * mmToSvg - 10} ${
-          viewWidth + FRAME_THICKNESS_MM * mmToSvg * 2 + 20
-        } ${viewHeight + FRAME_THICKNESS_MM * mmToSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0) + 20}`} className="layer-configurator__svg">
+        <svg
+          ref={svgRef}
+          viewBox={`${-FRAME_THICKNESS_MM * mmToSvg - 10} ${-FRAME_THICKNESS_MM * mmToSvg - 10} ${
+            viewWidth + FRAME_THICKNESS_MM * mmToSvg * 2 + 20
+          } ${viewHeight + FRAME_THICKNESS_MM * mmToSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0) + 20}`}
+          className="layer-configurator__svg"
+        >
           <rect x={-5000} y={-5000} width={10000} height={10000} fill="#fafaf9" />
           {tab === "layer1" && <polygon points={pointsToSvg(shapeOutline)} fill="white" stroke="#1f2937" strokeWidth={2} />}
           {tab === "layer2" &&

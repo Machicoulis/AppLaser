@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { defaultWidths, LAYER_ORDER, LAYER_STYLE, MODE_LABEL, type LayerLines, type WayCategory } from "../layers/layerStyles";
+import { defaultWidths, filterBySize, LAYER_ORDER, LAYER_STYLE, MODE_LABEL, type LayerLines, type WayCategory } from "../layers/layerStyles";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 import { computeViewBoxSize, isClosedWay, pointsToSvg, project, projectShapeOutline } from "./project";
 import "./area-preview.css";
@@ -15,6 +15,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [widthsMm, setWidthsMm] = useState<Record<WayCategory, number>>(defaultWidths);
+  const [minWaterSizeM, setMinWaterSizeM] = useState(15);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -47,6 +48,8 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
   // le viewBox SVG représente la plaque physique : ce facteur convertit un réglage en mm en unités SVG
   const mmToSvg = viewWidth / selection.plateWidthMm;
   const shapeOutline = projectShapeOutline(selection, viewWidth, viewHeight);
+  // exclut les petits plans d'eau (mares, fontaines...) en dessous du seuil choisi
+  const displayLayers: LayerLines | null = layers && { ...layers, water: filterBySize(layers.water, minWaterSizeM) };
 
   function handleWidthChange(cat: WayCategory, mm: number) {
     setWidthsMm((prev) => ({ ...prev, [cat]: mm }));
@@ -66,7 +69,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
         {loading && <p>Récupération des données OpenStreetMap…</p>}
         {error && <p className="area-preview__error">{error}</p>}
 
-        {layers && (
+        {displayLayers && (
           <ul className="area-preview__legend">
             {LAYER_ORDER.map((cat) => {
               const style = LAYER_STYLE[cat];
@@ -74,7 +77,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
                 <li key={cat}>
                   <span className="area-preview__swatch" style={{ background: style.fill ?? style.stroke }} />
                   <span className="area-preview__legend-label">
-                    {style.label} ({layers[cat].length})
+                    {style.label} ({displayLayers[cat].length})
                   </span>
                   <span className={`area-preview__mode area-preview__mode--${style.mode}`}>{MODE_LABEL[style.mode]}</span>
                   {style.areaFill ? (
@@ -98,15 +101,30 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
           </ul>
         )}
 
-        {layers && (
-          <button type="button" className="area-preview__continue" onClick={() => onContinue(layers, widthsMm)}>
+        {displayLayers && (
+          <label className="area-preview__min-size">
+            Taille min. des plans d'eau
+            <input
+              type="number"
+              min={0}
+              max={200}
+              step={5}
+              value={minWaterSizeM}
+              onChange={(e) => setMinWaterSizeM(Number(e.target.value))}
+            />
+            m
+          </label>
+        )}
+
+        {displayLayers && (
+          <button type="button" className="area-preview__continue" onClick={() => onContinue(displayLayers, widthsMm)}>
             Continuer vers la configuration des layers →
           </button>
         )}
       </aside>
 
       <div className="area-preview__canvas">
-        {layers && (
+        {displayLayers && (
           <svg viewBox={`0 0 ${viewWidth} ${viewHeight}`} className="area-preview__svg">
             <defs>
               <clipPath id="area-preview-shape-clip">
@@ -118,7 +136,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
               {LAYER_ORDER.map((cat) => {
                 const style = LAYER_STYLE[cat];
                 const strokeWidth = widthsMm[cat] * mmToSvg;
-                return layers[cat].map((line, i) => {
+                return displayLayers[cat].map((line, i) => {
                   const projected = line.map(([lat, lng]) => project(selection.bbox, lat, lng, viewWidth, viewHeight));
                   const closed = isClosedWay(line);
                   if (closed && style.fill) {

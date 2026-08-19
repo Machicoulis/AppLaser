@@ -12,6 +12,7 @@ import {
 import type { WidthSettings } from "../area-preview/AreaPreview";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 import { DraggableText, type TextPosition } from "./DraggableText";
+import { formatSeconds, pathsToSvgString, requestGcode, triggerDownload, type GcodePathSpec, type ModeSettings } from "./gcodeExport";
 import {
   FIXED_OPTIONAL,
   FIXED_STYLE,
@@ -23,8 +24,9 @@ import {
 } from "./layerStyles";
 import "./layer-configurator.css";
 
-type Tab = "layer1" | "layer2" | "layer3" | "final";
+type Tab = "layer1" | "layer2" | "layer3" | "final" | "export";
 type Line = [number, number][];
+type LayerNumber = 1 | 2 | 3;
 
 const FONT_GROUPS = [
   {
@@ -92,6 +94,13 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     return `${centerLat.toFixed(4)}° N, ${centerLng.toFixed(4)}° E`;
   });
   const [titleMode, setTitleMode] = useState<"gravure" | "decoupe">("gravure");
+
+  const [gravureSettings, setGravureSettings] = useState<ModeSettings>({ powerPercent: 55, speedMmPerMin: 3200, passes: 1 });
+  const [decoupeSettings, setDecoupeSettings] = useState<ModeSettings>({ powerPercent: 85, speedMmPerMin: 900, passes: 2 });
+  const [sMax, setSMax] = useState(1000);
+  const [exportLoading, setExportLoading] = useState<Partial<Record<LayerNumber, boolean>>>({});
+  const [exportError, setExportError] = useState<Partial<Record<LayerNumber, string>>>({});
+  const [exportInfo, setExportInfo] = useState<Partial<Record<LayerNumber, string>>>({});
 
   const { viewWidth, viewHeight } = computeViewBoxSize(selection);
   const mmToSvg = viewWidth / selection.plateWidthMm;
@@ -343,6 +352,90 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     );
   }
 
+  // Convertit un point en coordonnées SVG locales vers des mm plaque-locaux, origine (0,0) en bas à gauche
+  // (axe Y inversé par rapport au SVG pour retrouver la convention habituelle des logiciels de pilotage laser).
+  function toPlateMm([x, y]: [number, number], offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): [number, number] {
+    const mmX = (x + offsetXSvg) / mmToSvg;
+    const mmYFromTop = (y + offsetYSvg) / mmToSvg;
+    return [mmX, plateHeightMm - mmYFromTop];
+  }
+
+  function projectLineMm(line: Line, offsetXSvg: number, offsetYSvg: number, plateHeightMm: number): [number, number][] {
+    return line.map(([lat, lng]) => toPlateMm(project(projBbox, lat, lng, viewWidth, viewHeight), offsetXSvg, offsetYSvg, plateHeightMm));
+  }
+
+  // Construit les tracés exportables (G-code/SVG) d'un layer, en mm réels, indépendamment de l'onglet affiché.
+  // Limitation connue : le titre et les coordonnées (texte) ne sont pas encore inclus — cf. section 9 du CDC
+  // ("toujours convertir le texte en tracés vectoriels avant export"), pas encore implémenté.
+  function buildLayerPaths(layerNum: LayerNumber): { paths: GcodePathSpec[]; plateWidthMm: number; plateHeightMm: number } {
+    if (layerNum === 1) {
+      const plateHeightMm = viewHeight / mmToSvg;
+      const outline = shapeOutline.map((p) => toPlateMm(p, 0, 0, plateHeightMm));
+      return { paths: [{ points: outline, closed: true, mode: "decoupe" }], plateWidthMm: selection.plateWidthMm, plateHeightMm };
+    }
+    if (layerNum === 2) {
+      const plateHeightMm = viewHeight / mmToSvg;
+      const paths: GcodePathSpec[] = [];
+      if (fixedEnabled.park) {
+        for (const line of data.park) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+      }
+      for (const line of data.water) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "decoupe" });
+      if (fixedEnabled.railway) {
+        for (const line of data.railway) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+      }
+      for (const line of layer2Roads) paths.push({ points: projectLineMm(line, 0, 0, plateHeightMm), closed: isClosedWay(line), mode: "gravure" });
+      return { paths, plateWidthMm: selection.plateWidthMm, plateHeightMm };
+    }
+    // Layer 3 : cadre + routes principales, origine plaque décalée au coin extérieur du cadre.
+    // Simplification connue : les coins arrondis du cadre rectangulaire sont exportés en angles vifs pour l'instant.
+    const marginSvg = frameThicknessMm * mmToSvg;
+    const outerW = viewWidth + marginSvg * 2;
+    const outerH = viewHeight + marginSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0);
+    const plateWidthMm = outerW / mmToSvg;
+    const plateHeightMm = outerH / mmToSvg;
+    const frameOutline: [number, number][] = isRect
+      ? [
+          [-marginSvg, -marginSvg],
+          [outerW - marginSvg, -marginSvg],
+          [outerW - marginSvg, outerH - marginSvg],
+          [-marginSvg, outerH - marginSvg],
+        ]
+      : offsetShapeOutline(shapeOutline, marginSvg);
+    const paths: GcodePathSpec[] = [
+      { points: frameOutline.map((p) => toPlateMm(p, marginSvg, marginSvg, plateHeightMm)), closed: true, mode: "decoupe" },
+    ];
+    for (const line of layer3Roads) paths.push({ points: projectLineMm(line, marginSvg, marginSvg, plateHeightMm), closed: isClosedWay(line), mode: "decoupe" });
+    return { paths, plateWidthMm, plateHeightMm };
+  }
+
+  async function handleDownloadGcode(layerNum: LayerNumber) {
+    const { paths, plateWidthMm, plateHeightMm } = buildLayerPaths(layerNum);
+    setExportError((prev) => ({ ...prev, [layerNum]: undefined }));
+    if (paths.length === 0) {
+      setExportError((prev) => ({ ...prev, [layerNum]: "Aucun élément à exporter sur ce layer." }));
+      return;
+    }
+    setExportLoading((prev) => ({ ...prev, [layerNum]: true }));
+    try {
+      const { gcode, estimatedSeconds } = await requestGcode(paths, plateWidthMm, plateHeightMm, sMax, gravureSettings, decoupeSettings);
+      triggerDownload(new Blob([gcode], { type: "text/plain" }), `applaser-layer${layerNum}.gcode`);
+      setExportInfo((prev) => ({ ...prev, [layerNum]: `${paths.length} tracés — durée estimée ${formatSeconds(estimatedSeconds)}` }));
+    } catch (err) {
+      setExportError((prev) => ({ ...prev, [layerNum]: err instanceof Error ? err.message : "Erreur inconnue" }));
+    } finally {
+      setExportLoading((prev) => ({ ...prev, [layerNum]: false }));
+    }
+  }
+
+  function handleDownloadSvg(layerNum: LayerNumber) {
+    const { paths, plateWidthMm, plateHeightMm } = buildLayerPaths(layerNum);
+    if (paths.length === 0) {
+      setExportError((prev) => ({ ...prev, [layerNum]: "Aucun élément à exporter sur ce layer." }));
+      return;
+    }
+    triggerDownload(new Blob([pathsToSvgString(paths, plateWidthMm, plateHeightMm)], { type: "image/svg+xml" }), `applaser-layer${layerNum}.svg`);
+  }
+
   return (
     <div className="layer-configurator">
       <aside className="layer-configurator__panel">
@@ -363,6 +456,9 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
           </button>
           <button type="button" className={tab === "final" ? "active" : ""} onClick={() => setTab("final")}>
             Aperçu final
+          </button>
+          <button type="button" className={tab === "export" ? "active" : ""} onClick={() => setTab("export")}>
+            Export
           </button>
         </div>
 
@@ -609,6 +705,115 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
               cadre + routes principales + titre du Layer 3. Utile pour visualiser le rendu global — la fabrication reste
               par plaque séparée (onglets précédents).
             </p>
+          </div>
+        )}
+
+        {tab === "export" && (
+          <div className="layer-configurator__section">
+            <p className="layer-configurator__hint">
+              Le texte (titre, coordonnées) n'est pas encore inclus dans l'export — à graver manuellement en attendant la
+              conversion police → tracés vectoriels. Les coins arrondis du cadre sont exportés en angles vifs pour l'instant.
+            </p>
+
+            <fieldset>
+              <legend>Réglages gravure</legend>
+              <label>
+                Puissance (%)
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={gravureSettings.powerPercent}
+                  onChange={(e) => setGravureSettings((prev) => ({ ...prev, powerPercent: Number(e.target.value) }))}
+                />
+              </label>
+              <label>
+                Vitesse (mm/min)
+                <input
+                  type="number"
+                  min={1}
+                  max={25000}
+                  value={gravureSettings.speedMmPerMin}
+                  onChange={(e) => setGravureSettings((prev) => ({ ...prev, speedMmPerMin: Number(e.target.value) }))}
+                />
+              </label>
+              <label>
+                Passes
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={gravureSettings.passes}
+                  onChange={(e) => setGravureSettings((prev) => ({ ...prev, passes: Number(e.target.value) }))}
+                />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>Réglages découpe</legend>
+              <label>
+                Puissance (%)
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={decoupeSettings.powerPercent}
+                  onChange={(e) => setDecoupeSettings((prev) => ({ ...prev, powerPercent: Number(e.target.value) }))}
+                />
+              </label>
+              <label>
+                Vitesse (mm/min)
+                <input
+                  type="number"
+                  min={1}
+                  max={25000}
+                  value={decoupeSettings.speedMmPerMin}
+                  onChange={(e) => setDecoupeSettings((prev) => ({ ...prev, speedMmPerMin: Number(e.target.value) }))}
+                />
+              </label>
+              <label>
+                Passes
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={decoupeSettings.passes}
+                  onChange={(e) => setDecoupeSettings((prev) => ({ ...prev, passes: Number(e.target.value) }))}
+                />
+              </label>
+            </fieldset>
+
+            <label>
+              Valeur S maximale (calibration laser)
+              <input type="number" min={1} max={65535} value={sMax} onChange={(e) => setSMax(Number(e.target.value))} />
+            </label>
+            <p className="layer-configurator__hint">
+              Vérifiez avec la commande <code>$$</code> sur votre contrôleur GRBL ($30) — souvent 1000, parfois 255.
+            </p>
+
+            {([1, 2, 3] as LayerNumber[]).map((layerNum) => {
+              const { paths } = buildLayerPaths(layerNum);
+              return (
+                <fieldset key={layerNum}>
+                  <legend>Layer {layerNum}</legend>
+                  <p className="layer-configurator__hint">{paths.length} tracé(s) à exporter.</p>
+                  <div className="layer-configurator__export-actions">
+                    <button type="button" onClick={() => handleDownloadSvg(layerNum)} disabled={paths.length === 0}>
+                      Télécharger le SVG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadGcode(layerNum)}
+                      disabled={paths.length === 0 || exportLoading[layerNum]}
+                    >
+                      {exportLoading[layerNum] ? "Génération…" : "Télécharger le G-code"}
+                    </button>
+                  </div>
+                  {exportInfo[layerNum] && <p className="layer-configurator__hint">{exportInfo[layerNum]}</p>}
+                  {exportError[layerNum] && <p className="area-preview__error">{exportError[layerNum]}</p>}
+                </fieldset>
+              );
+            })}
           </div>
         )}
       </aside>

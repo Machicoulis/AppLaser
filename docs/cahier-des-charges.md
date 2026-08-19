@@ -65,6 +65,8 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 **Export**
 - Chaque layer est généré et exporté séparément (aperçu SVG + G-code dédié) : 3 layers = 3 fichiers = 3 jobs = 3 plaques de matériau (le cadre/titre étant inclus dans l'export du Layer 3, pas de 4ᵉ fichier).
 - Pas de système d'alignement automatisé prévu dans le MVP (cf. décision utilisateur) : l'utilisateur gère lui-même le calage physique des plaques entre elles (un simple contour de référence commun à chaque layer suffit à guider l'empilement).
+- **Implémenté (premier jet)** : export SVG (mm réels) et G-code GRBL (mode laser dynamique M4) par layer, réglages puissance/vitesse/passes séparés gravure/découpe, validation de la zone de travail (400x400mm) côté backend, estimation de la durée.
+  Limitations connues à lever ensuite : le texte (titre/coordonnées) n'est pas encore converti en tracés vectoriels et n'est donc pas inclus dans l'export (cf. section 9) ; les coins arrondis du cadre sont exportés en angles vifs ; pas encore de détection des "îlots" (pièces qui se détacheraient à la découpe) ni de remplissage trame pour les zones de gravure pleine (parcs).
 - Réglages puissance/vitesse/passes indépendants par layer, avec presets dédiés à la cartographie (ex. "contreplaqué 3mm — gravure route", "contreplaqué 3mm — découpe fine plan d'eau").
 
 **Niveau de détail des données OSM**

@@ -1,0 +1,164 @@
+.layer-configurator {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  font-family: system-ui, sans-serif;
+}
+
+.layer-configurator__panel {
+  width: 320px;
+  flex-shrink: 0;
+  padding: 1rem;
+  overflow-y: auto;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.layer-configurator__panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.layer-configurator__back {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.layer-configurator__tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.layer-configurator__tabs button {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.layer-configurator__tabs button.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.layer-configurator__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.layer-configurator__hint {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0;
+}
+
+.layer-configurator__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.layer-configurator__legend {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.layer-configurator__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.layer-configurator__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.layer-configurator__mode {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.layer-configurator__mode--gravure {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.layer-configurator__mode--decoupe {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.layer-configurator__width-input {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.layer-configurator__width-input input {
+  width: 3.2rem;
+}
+
+.layer-configurator__section fieldset {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.layer-configurator__section fieldset label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.layer-configurator__section fieldset input[type="number"],
+.layer-configurator__section fieldset input[type="text"],
+.layer-configurator__section fieldset select {
+  width: 8rem;
+}
+
+.layer-configurator__canvas {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e5e7eb;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.layer-configurator__svg {
+  max-width: 100%;
+  max-height: 100%;
+  background: white;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+}

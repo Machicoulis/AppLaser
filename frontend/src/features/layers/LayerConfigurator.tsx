@@ -60,8 +60,7 @@ const WEIGHT_OPTIONS = [
   { value: 900, label: "Extra gras" },
 ];
 
-// Épaisseur fixe du cadre autour de la carte — pas encore configurable, cf. limitations en fin de développement.
-const FRAME_THICKNESS_MM = 25;
+const DEFAULT_frameThicknessMm = 25;
 
 interface LayerConfiguratorProps {
   selection: AreaSelection;
@@ -81,9 +80,15 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   const [font, setFont] = useState(FONT_GROUPS[0].options[0].value);
   const [fontWeight, setFontWeight] = useState(700);
   const [titleSizeMm, setTitleSizeMm] = useState(12);
+  const [frameThicknessMm, setFrameThicknessMm] = useState(DEFAULT_frameThicknessMm);
   const [outerRadiusMm, setOuterRadiusMm] = useState(8);
   const [innerRadiusMm, setInnerRadiusMm] = useState(4);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  const [coordinatesText, setCoordinatesText] = useState(() => {
+    const centerLat = (selection.bbox.south + selection.bbox.north) / 2;
+    const centerLng = (selection.bbox.west + selection.bbox.east) / 2;
+    return `${centerLat.toFixed(4)}° N, ${centerLng.toFixed(4)}° E`;
+  });
   const [titleMode, setTitleMode] = useState<"gravure" | "decoupe">("gravure");
 
   const { viewWidth, viewHeight } = computeViewBoxSize(selection);
@@ -102,12 +107,12 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   // Positions par défaut du titre/coordonnées : sous la carte, dans la marge du cadre — ajustées une fois puis laissées à l'utilisateur.
   const [titlePos, setTitlePos] = useState<TextPosition>(() => ({
     x: viewWidth / 2,
-    y: viewHeight + FRAME_THICKNESS_MM * mmToSvg * 0.65,
+    y: viewHeight + frameThicknessMm * mmToSvg * 0.65,
     rotationDeg: 0,
   }));
   const [coordsPos, setCoordsPos] = useState<TextPosition>(() => ({
     x: viewWidth / 2,
-    y: viewHeight + FRAME_THICKNESS_MM * mmToSvg * 0.65 + titleSizeMm * mmToSvg * 1.4,
+    y: viewHeight + frameThicknessMm * mmToSvg * 0.65 + titleSizeMm * mmToSvg * 1.4,
     rotationDeg: 0,
   }));
 
@@ -195,12 +200,8 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     );
   }
 
-  const centerLat = (selection.bbox.south + selection.bbox.north) / 2;
-  const centerLng = (selection.bbox.west + selection.bbox.east) / 2;
-  const coordinatesText = `${centerLat.toFixed(4)}° N, ${centerLng.toFixed(4)}° E`;
-
   function renderLayer3() {
-    const marginSvg = FRAME_THICKNESS_MM * mmToSvg;
+    const marginSvg = frameThicknessMm * mmToSvg;
     const extraBottomSvg = showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0;
     const outerRadiusSvg = outerRadiusMm * mmToSvg;
     const innerRadiusSvg = innerRadiusMm * mmToSvg;
@@ -273,7 +274,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
 
   // Aperçu final : superpose les 3 plaques telles qu'assemblées (fond + gravure/eau découpée + cadre/routes principales/titre).
   function renderFinalPreview() {
-    const marginSvg = FRAME_THICKNESS_MM * mmToSvg;
+    const marginSvg = frameThicknessMm * mmToSvg;
     const outerRadiusSvg = outerRadiusMm * mmToSvg;
     const titleSizeSvg = titleSizeMm * mmToSvg;
 
@@ -519,6 +520,16 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
                 Taille du texte (mm)
                 <input type="number" min={4} max={40} value={titleSizeMm} onChange={(e) => setTitleSizeMm(Number(e.target.value))} />
               </label>
+              <label>
+                Épaisseur du cadre (mm)
+                <input
+                  type="number"
+                  min={5}
+                  max={100}
+                  value={frameThicknessMm}
+                  onChange={(e) => setFrameThicknessMm(Number(e.target.value))}
+                />
+              </label>
               {isRect && (
                 <>
                   <label>
@@ -545,8 +556,14 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
               )}
               <label className="layer-configurator__checkbox">
                 <input type="checkbox" checked={showCoordinates} onChange={(e) => setShowCoordinates(e.target.checked)} />
-                Afficher les coordonnées ({coordinatesText})
+                Afficher les coordonnées
               </label>
+              {showCoordinates && (
+                <label>
+                  Texte des coordonnées
+                  <input type="text" value={coordinatesText} onChange={(e) => setCoordinatesText(e.target.value)} />
+                </label>
+              )}
             </fieldset>
           </div>
         )}
@@ -565,9 +582,9 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
       <div className="layer-configurator__canvas">
         <svg
           ref={svgRef}
-          viewBox={`${-FRAME_THICKNESS_MM * mmToSvg - 10} ${-FRAME_THICKNESS_MM * mmToSvg - 10} ${
-            viewWidth + FRAME_THICKNESS_MM * mmToSvg * 2 + 20
-          } ${viewHeight + FRAME_THICKNESS_MM * mmToSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0) + 20}`}
+          viewBox={`${-frameThicknessMm * mmToSvg - 10} ${-frameThicknessMm * mmToSvg - 10} ${
+            viewWidth + frameThicknessMm * mmToSvg * 2 + 20
+          } ${viewHeight + frameThicknessMm * mmToSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0) + 20}`}
           className="layer-configurator__svg"
         >
           <rect x={-5000} y={-5000} width={10000} height={10000} fill="#fafaf9" />

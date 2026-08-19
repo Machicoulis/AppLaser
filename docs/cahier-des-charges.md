@@ -58,8 +58,9 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 - Le nom de la ville est **intégré et découpé/gravé en relief dans le cadre** du Layer 3.
 - Le titre est **librement repositionnable et orientable** (déplacement + rotation) dans la zone du cadre, plutôt que fixé à un emplacement unique.
 - **Police et taille du texte configurables** : choix de la police d'écriture (parmi une liste de polices adaptées à la gravure/découpe laser — mono-trait ou pleines selon le rendu voulu) et réglage de la taille du texte, pour le titre comme pour les coordonnées.
-- **Coordonnées GPS optionnelles** : activables via un **décalage (offset)** qui agrandit le cadre d'un côté pour dégager la place nécessaire à leur affichage (plutôt que deux styles de cadre distincts) ; désactivées, le cadre reste au plus près de la carte.
+- **Coordonnées GPS optionnelles** : activables via un **décalage (offset)** qui agrandit le cadre d'un côté pour dégager la place nécessaire à leur affichage (plutôt que deux styles de cadre distincts) ; désactivées, le cadre reste au plus près de la carte. Le texte affiché est **modifiable librement, indépendamment du titre** (pré-rempli avec les coordonnées calculées du centre de la zone, mais éditable).
 - **Bords arrondis du cadre** : rayon configurable indépendamment pour le **contour extérieur (outer)** et le **contour intérieur (inner)** du cadre.
+- **Épaisseur du cadre configurable** (en mm), plutôt que fixe.
 
 **Export**
 - Chaque layer est généré et exporté séparément (aperçu SVG + G-code dédié) : 3 layers = 3 fichiers = 3 jobs = 3 plaques de matériau (le cadre/titre étant inclus dans l'export du Layer 3, pas de 4ᵉ fichier).

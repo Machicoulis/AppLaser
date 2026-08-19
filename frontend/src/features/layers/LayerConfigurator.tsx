@@ -60,7 +60,7 @@ const WEIGHT_OPTIONS = [
   { value: 900, label: "Extra gras" },
 ];
 
-const DEFAULT_frameThicknessMm = 25;
+const DEFAULT_FRAME_THICKNESS_MM = 25;
 
 interface LayerConfiguratorProps {
   selection: AreaSelection;
@@ -79,8 +79,10 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   const [cityName, setCityName] = useState("");
   const [font, setFont] = useState(FONT_GROUPS[0].options[0].value);
   const [fontWeight, setFontWeight] = useState(700);
+  const [coordsFont, setCoordsFont] = useState(FONT_GROUPS[0].options[0].value);
+  const [coordsFontWeight, setCoordsFontWeight] = useState(400);
   const [titleSizeMm, setTitleSizeMm] = useState(12);
-  const [frameThicknessMm, setFrameThicknessMm] = useState(DEFAULT_frameThicknessMm);
+  const [frameThicknessMm, setFrameThicknessMm] = useState(DEFAULT_FRAME_THICKNESS_MM);
   const [outerRadiusMm, setOuterRadiusMm] = useState(8);
   const [innerRadiusMm, setInnerRadiusMm] = useState(4);
   const [showCoordinates, setShowCoordinates] = useState(false);
@@ -260,8 +262,8 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
             svgRef={svgRef}
             position={coordsPos}
             onChange={setCoordsPos}
-            fontFamily={font}
-            fontWeight={fontWeight}
+            fontFamily={coordsFont}
+            fontWeight={coordsFontWeight}
             fontSize={titleSizeSvg * 0.55}
             fill="#4b5563"
           >
@@ -326,7 +328,13 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
         )}
         {showCoordinates && (
           <g transform={`translate(${coordsPos.x},${coordsPos.y}) rotate(${coordsPos.rotationDeg})`}>
-            <text textAnchor="middle" fontFamily={font} fontWeight={fontWeight} fontSize={titleSizeSvg * 0.55} fill="#4b5563">
+            <text
+              textAnchor="middle"
+              fontFamily={coordsFont}
+              fontWeight={coordsFontWeight}
+              fontSize={titleSizeSvg * 0.55}
+              fill="#4b5563"
+            >
               {coordinatesText}
             </text>
           </g>
@@ -559,10 +567,36 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
                 Afficher les coordonnées
               </label>
               {showCoordinates && (
-                <label>
-                  Texte des coordonnées
-                  <input type="text" value={coordinatesText} onChange={(e) => setCoordinatesText(e.target.value)} />
-                </label>
+                <>
+                  <label>
+                    Texte des coordonnées
+                    <input type="text" value={coordinatesText} onChange={(e) => setCoordinatesText(e.target.value)} />
+                  </label>
+                  <label>
+                    Police des coordonnées
+                    <select value={coordsFont} onChange={(e) => setCoordsFont(e.target.value)}>
+                      {FONT_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.options.map((f) => (
+                            <option key={f.value} value={f.value}>
+                              {f.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Graisse des coordonnées
+                    <select value={coordsFontWeight} onChange={(e) => setCoordsFontWeight(Number(e.target.value))}>
+                      {WEIGHT_OPTIONS.map((w) => (
+                        <option key={w.value} value={w.value}>
+                          {w.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
               )}
             </fieldset>
           </div>

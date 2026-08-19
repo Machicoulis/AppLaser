@@ -72,6 +72,44 @@
   background: #1d4ed8;
 }
 
+.map-area-selector__confirm:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.map-area-selector__shape-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.map-area-selector__shape-buttons button {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.map-area-selector__shape-buttons button.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.map-area-selector__polygon-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.map-area-selector__hint {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0;
+}
+
 .map-area-selector__map {
   flex: 1;
 }

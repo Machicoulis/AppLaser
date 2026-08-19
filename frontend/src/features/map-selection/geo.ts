@@ -16,6 +16,33 @@ function metersPerDegreeLng(latDeg: number): number {
   return METERS_PER_DEGREE_LAT * Math.cos((latDeg * Math.PI) / 180);
 }
 
+export function distanceMeters(a: LatLng, b: LatLng): number {
+  const dLat = (b.lat - a.lat) * METERS_PER_DEGREE_LAT;
+  const dLng = (b.lng - a.lng) * metersPerDegreeLng(a.lat);
+  return Math.hypot(dLat, dLng);
+}
+
+/** Point à une distance donnée (mètres) et un angle donné (degrés, 0 = est) d'un centre. */
+export function pointAtDistance(center: LatLng, distanceM: number, angleDeg: number): LatLng {
+  const angleRad = (angleDeg * Math.PI) / 180;
+  return {
+    lat: center.lat + (distanceM * Math.sin(angleRad)) / METERS_PER_DEGREE_LAT,
+    lng: center.lng + (distanceM * Math.cos(angleRad)) / metersPerDegreeLng(center.lat),
+  };
+}
+
+/** Bbox englobant un cercle centré, de rayon donné en mètres. */
+export function computeCircleBounds(center: LatLng, radiusM: number): BoundingBox {
+  return computeBounds(center, radiusM * 2, radiusM * 2);
+}
+
+/** Bbox englobant une liste de points (polygone libre). */
+export function computePolygonBounds(points: LatLng[]): BoundingBox {
+  const lats = points.map((p) => p.lat);
+  const lngs = points.map((p) => p.lng);
+  return { south: Math.min(...lats), north: Math.max(...lats), west: Math.min(...lngs), east: Math.max(...lngs) };
+}
+
 /** Rectangle de sélection centré, dimensionné en mètres réels, avec le rapport largeur/hauteur de la plaque. */
 export function computeBounds(center: LatLng, widthM: number, heightM: number): BoundingBox {
   const halfHeightDeg = heightM / 2 / METERS_PER_DEGREE_LAT;

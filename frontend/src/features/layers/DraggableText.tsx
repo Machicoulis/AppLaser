@@ -22,13 +22,24 @@ interface DraggableTextProps {
   onChange: (position: TextPosition) => void;
   onDragEnd?: (position: TextPosition) => void;
   fontFamily: string;
+  fontWeight?: number;
   fontSize: number;
   fill: string;
   children: string;
 }
 
 /** Texte déplaçable (glisser le texte) et orientable (glisser la poignée ronde au-dessus), en coordonnées SVG. */
-export function DraggableText({ svgRef, position, onChange, onDragEnd, fontFamily, fontSize, fill, children }: DraggableTextProps) {
+export function DraggableText({
+  svgRef,
+  position,
+  onChange,
+  onDragEnd,
+  fontFamily,
+  fontWeight = 400,
+  fontSize,
+  fill,
+  children,
+}: DraggableTextProps) {
   const dragStart = useRef<{ pointerX: number; pointerY: number; origX: number; origY: number } | null>(null);
   const rotating = useRef(false);
   const handleDistance = fontSize * 1.6;
@@ -82,7 +93,16 @@ export function DraggableText({ svgRef, position, onChange, onDragEnd, fontFamil
   return (
     <g transform={`translate(${position.x},${position.y}) rotate(${position.rotationDeg})`} style={{ touchAction: "none" }}>
       <line x1={0} y1={0} x2={0} y2={-handleDistance} className="draggable-text__rotate-guide" pointerEvents="none" />
-      <text x={0} y={0} textAnchor="middle" fontFamily={fontFamily} fontSize={fontSize} fill={fill} pointerEvents="none">
+      <text
+        x={0}
+        y={0}
+        textAnchor="middle"
+        fontFamily={fontFamily}
+        fontWeight={fontWeight}
+        fontSize={fontSize}
+        fill={fill}
+        pointerEvents="none"
+      >
         {children}
       </text>
       <rect

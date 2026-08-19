@@ -26,6 +26,15 @@ const FONT_GROUPS = [
     ],
   },
   {
+    label: "Gravure — polices grasses (traits épais, bien visibles)",
+    options: [
+      { value: "'Archivo Black', sans-serif", label: "Archivo Black" },
+      { value: "'Anton', sans-serif", label: "Anton" },
+      { value: "'Poppins', sans-serif", label: "Poppins" },
+      { value: "'Montserrat', sans-serif", label: "Montserrat" },
+    ],
+  },
+  {
     label: "Découpe (polices stencil, sans îlot)",
     options: [
       { value: "'Allerta Stencil', sans-serif", label: "Allerta Stencil" },
@@ -34,6 +43,12 @@ const FONT_GROUPS = [
       { value: "'Big Shoulders Stencil Display', sans-serif", label: "Big Shoulders Stencil" },
     ],
   },
+];
+
+const WEIGHT_OPTIONS = [
+  { value: 400, label: "Normal" },
+  { value: 700, label: "Gras" },
+  { value: 900, label: "Extra gras" },
 ];
 
 // Épaisseur fixe du cadre autour de la carte — pas encore configurable, cf. limitations en fin de développement.
@@ -55,6 +70,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
 
   const [cityName, setCityName] = useState("");
   const [font, setFont] = useState(FONT_GROUPS[0].options[0].value);
+  const [fontWeight, setFontWeight] = useState(700);
   const [titleSizeMm, setTitleSizeMm] = useState(12);
   const [outerRadiusMm, setOuterRadiusMm] = useState(8);
   const [innerRadiusMm, setInnerRadiusMm] = useState(4);
@@ -219,6 +235,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
             onChange={setTitlePos}
             onDragEnd={handleTitleDragEnd}
             fontFamily={font}
+            fontWeight={fontWeight}
             fontSize={titleSizeSvg}
             fill={titleMode === "decoupe" ? "#1e3a8a" : "#1f2937"}
           >
@@ -231,6 +248,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
             position={coordsPos}
             onChange={setCoordsPos}
             fontFamily={font}
+            fontWeight={fontWeight}
             fontSize={titleSizeSvg * 0.55}
             fill="#4b5563"
           >
@@ -266,6 +284,10 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
             <p className="layer-configurator__hint">
               Plaque pleine : seul le contour extérieur est découpé. À peindre en bleu (ou laisser neutre) après fabrication —
               elle apparaîtra par transparence à travers les découpes du Layer 2.
+            </p>
+            <p className="layer-configurator__hint">
+              Les plans d'eau ({data.water.length}) sont affichés en transparence à titre indicatif — un repère pour la
+              peinture, pas un élément gravé ou découpé sur cette plaque.
             </p>
           </div>
         )}
@@ -403,6 +425,16 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
                 </select>
               </label>
               <label>
+                Graisse
+                <select value={fontWeight} onChange={(e) => setFontWeight(Number(e.target.value))}>
+                  {WEIGHT_OPTIONS.map((w) => (
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 Taille du texte (mm)
                 <input type="number" min={4} max={40} value={titleSizeMm} onChange={(e) => setTitleSizeMm(Number(e.target.value))} />
               </label>
@@ -448,7 +480,19 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
           className="layer-configurator__svg"
         >
           <rect x={-5000} y={-5000} width={10000} height={10000} fill="#fafaf9" />
-          {tab === "layer1" && <polygon points={pointsToSvg(shapeOutline)} fill="white" stroke="#1f2937" strokeWidth={2} />}
+          {tab === "layer1" && (
+            <>
+              <polygon points={pointsToSvg(shapeOutline)} fill="white" stroke="#1f2937" strokeWidth={2} />
+              <defs>
+                <clipPath id="layer1-clip">
+                  <polygon points={pointsToSvg(shapeOutline)} />
+                </clipPath>
+              </defs>
+              <g clipPath="url(#layer1-clip)" opacity={0.5}>
+                {data.water.map((line, i) => renderLine("water-preview", FIXED_STYLE.water, 0, line, i))}
+              </g>
+            </>
+          )}
           {tab === "layer2" && renderLayer2()}
           {tab === "layer3" && renderLayer3()}
         </svg>

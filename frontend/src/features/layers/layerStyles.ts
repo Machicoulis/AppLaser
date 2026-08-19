@@ -56,16 +56,26 @@ export const HIGHWAY_META: Record<string, { label: string; defaultLayer: RoadLay
   unclassified: { label: "Route non classée", defaultLayer: "layer2" },
   residential: { label: "Rue résidentielle", defaultLayer: "layer2" },
   living_street: { label: "Zone de rencontre", defaultLayer: "layer2" },
-  service: { label: "Voie de service", defaultLayer: "layer2" },
-  pedestrian: { label: "Zone piétonne", defaultLayer: "layer2" },
-  track: { label: "Chemin agricole / forestier", defaultLayer: "layer2" },
-  // Très nombreux et peu lisibles à l'échelle d'une gravure : exclus par défaut, réactivables au cas par cas.
+  // Très nombreux et peu lisibles à l'échelle d'une gravure (ou hors-sujet pour une carte de ville) : exclus par
+  // défaut, réactivables au cas par cas à l'étape 2.
+  service: { label: "Voie de service", defaultLayer: "exclude" },
+  pedestrian: { label: "Zone piétonne", defaultLayer: "exclude" },
+  track: { label: "Chemin agricole / forestier", defaultLayer: "exclude" },
   path: { label: "Sentier", defaultLayer: "exclude" },
   footway: { label: "Trottoir / chemin piéton", defaultLayer: "exclude" },
   cycleway: { label: "Piste cyclable", defaultLayer: "exclude" },
   steps: { label: "Escaliers", defaultLayer: "exclude" },
-  bridleway: { label: "Chemin équestre", defaultLayer: "layer2" },
-  construction: { label: "Route en construction", defaultLayer: "layer2" },
+  bridleway: { label: "Chemin équestre", defaultLayer: "exclude" },
+  construction: { label: "Route en construction", defaultLayer: "exclude" },
+  bus_stop: { label: "Arrêt de bus", defaultLayer: "exclude" },
+  busway: { label: "Voie de bus", defaultLayer: "exclude" },
+  corridor: { label: "Corridor intérieur", defaultLayer: "exclude" },
+  elevator: { label: "Ascenseur", defaultLayer: "exclude" },
+  platform: { label: "Quai / plateforme", defaultLayer: "exclude" },
+  proposed: { label: "Route projetée", defaultLayer: "exclude" },
+  raceway: { label: "Circuit de course", defaultLayer: "exclude" },
+  rest_area: { label: "Aire de repos", defaultLayer: "exclude" },
+  yes: { label: "Route (type non précisé)", defaultLayer: "exclude" },
 };
 
 export function highwayLabel(type: string): string {

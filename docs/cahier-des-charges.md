@@ -42,6 +42,7 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 **Sélection de la zone**
 - Carte interactive (type Leaflet/MapLibre) permettant de naviguer et de positionner/redimensionner un cadre ajustable qui définit précisément la zone géographique à découper.
 - **Format personnalisable** : l'utilisateur définit librement les dimensions de la plaque visée (largeur x hauteur en mm), dans la limite de la zone de travail de la machine (400x400mm max sur la Phecda) ; le cadre s'ajuste en conséquence.
+- **Forme de la zone sélectionnable** : rectangle (par défaut), cercle, ou polygone libre — pas uniquement une découpe rectangulaire. La forme choisie détermine le contour final de la carte (et donc du Layer 3/cadre), pas seulement la zone de requête des données.
 
 **Structure des couches — exactement 3 plaques physiques superposées**
 1. **Layer 1 — Fond** : plaque pleine (uniquement le contour extérieur découpé). Laissée neutre ou peinte en bleu par l'utilisateur après fabrication ; elle marque les plans d'eau par transparence à travers la découpe de la couche du dessus. Aucun autre élément sur cette plaque.

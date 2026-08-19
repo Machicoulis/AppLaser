@@ -59,10 +59,11 @@ export const HIGHWAY_META: Record<string, { label: string; defaultLayer: RoadLay
   service: { label: "Voie de service", defaultLayer: "layer2" },
   pedestrian: { label: "Zone piétonne", defaultLayer: "layer2" },
   track: { label: "Chemin agricole / forestier", defaultLayer: "layer2" },
-  path: { label: "Sentier", defaultLayer: "layer2" },
-  footway: { label: "Trottoir / chemin piéton", defaultLayer: "layer2" },
-  cycleway: { label: "Piste cyclable", defaultLayer: "layer2" },
-  steps: { label: "Escaliers", defaultLayer: "layer2" },
+  // Très nombreux et peu lisibles à l'échelle d'une gravure : exclus par défaut, réactivables au cas par cas.
+  path: { label: "Sentier", defaultLayer: "exclude" },
+  footway: { label: "Trottoir / chemin piéton", defaultLayer: "exclude" },
+  cycleway: { label: "Piste cyclable", defaultLayer: "exclude" },
+  steps: { label: "Escaliers", defaultLayer: "exclude" },
   bridleway: { label: "Chemin équestre", defaultLayer: "layer2" },
   construction: { label: "Route en construction", defaultLayer: "layer2" },
 };

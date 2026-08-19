@@ -48,6 +48,7 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
   const [outerRadiusMm, setOuterRadiusMm] = useState(8);
   const [innerRadiusMm, setInnerRadiusMm] = useState(4);
   const [showCoordinates, setShowCoordinates] = useState(false);
+  const [titleMode, setTitleMode] = useState<"gravure" | "decoupe">("gravure");
 
   const { viewWidth, viewHeight } = computeViewBoxSize(selection);
   const mmToSvg = viewWidth / selection.plateWidthMm;
@@ -69,6 +70,40 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
   // Pas de grand axe routier dans la zone : les routes secondaires servent de repli en découpe, sinon le Layer 3 serait vide de routes.
   const majorRoadFallback = layers.majorRoad.length === 0 && layers.minorRoad.length > 0;
   const layer3Roads = majorRoadFallback ? layers.minorRoad : layers.majorRoad;
+
+  // Mode découpe : le texte doit chevaucher le cadre de 1mm (comme les routes principales qui traversent la bordure)
+  // pour rester rattaché au cadre une fois découpé, plutôt que de former des lettres isolées et détachées.
+  function snapToFrame(pos: TextPosition): TextPosition {
+    const overlapSvg = 1 * mmToSvg;
+    if (isRect) {
+      const distances = {
+        top: pos.y,
+        bottom: viewHeight - pos.y,
+        left: pos.x,
+        right: viewWidth - pos.x,
+      };
+      const nearestEdge = (Object.entries(distances) as [keyof typeof distances, number][]).reduce((a, b) =>
+        b[1] < a[1] ? b : a
+      )[0];
+      if (nearestEdge === "top") return { ...pos, y: -overlapSvg };
+      if (nearestEdge === "bottom") return { ...pos, y: viewHeight + overlapSvg };
+      if (nearestEdge === "left") return { ...pos, x: -overlapSvg };
+      return { ...pos, x: viewWidth + overlapSvg };
+    }
+    // Cercle/polygone : accroche radiale depuis le centroïde de la forme.
+    const cx = shapeOutline.reduce((sum, [x]) => sum + x, 0) / shapeOutline.length;
+    const cy = shapeOutline.reduce((sum, [, y]) => sum + y, 0) / shapeOutline.length;
+    const shapeRadius = shapeOutline.reduce((sum, [x, y]) => sum + Math.hypot(x - cx, y - cy), 0) / shapeOutline.length;
+    const dx = pos.x - cx;
+    const dy = pos.y - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    const targetDist = shapeRadius + overlapSvg;
+    return { ...pos, x: cx + (dx / dist) * targetDist, y: cy + (dy / dist) * targetDist };
+  }
+
+  function handleTitleDragEnd(pos: TextPosition) {
+    if (titleMode === "decoupe") setTitlePos(snapToFrame(pos));
+  }
 
   function handleWidthChange(cat: WayCategory, mm: number) {
     setWidthsMm((prev) => ({ ...prev, [cat]: mm }));
@@ -164,7 +199,15 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
         <g clipPath="url(#layer3-clip)">{layer3Roads.map((line, i) => renderLine("majorRoad", line, i))}</g>
 
         {cityName && (
-          <DraggableText svgRef={svgRef} position={titlePos} onChange={setTitlePos} fontFamily={font} fontSize={titleSizeSvg} fill="#1f2937">
+          <DraggableText
+            svgRef={svgRef}
+            position={titlePos}
+            onChange={setTitlePos}
+            onDragEnd={handleTitleDragEnd}
+            fontFamily={font}
+            fontSize={titleSizeSvg}
+            fill={titleMode === "decoupe" ? "#1e3a8a" : "#1f2937"}
+          >
             {cityName.toUpperCase()}
           </DraggableText>
         )}
@@ -280,6 +323,28 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
                 Nom de la ville
                 <input type="text" value={cityName} onChange={(e) => setCityName(e.target.value)} placeholder="ex. Pavia" />
               </label>
+              <div className="layer-configurator__mode-toggle">
+                <button
+                  type="button"
+                  className={titleMode === "gravure" ? "active" : ""}
+                  onClick={() => setTitleMode("gravure")}
+                >
+                  Gravure
+                </button>
+                <button
+                  type="button"
+                  className={titleMode === "decoupe" ? "active" : ""}
+                  onClick={() => setTitleMode("decoupe")}
+                >
+                  Découpe (accroché au cadre)
+                </button>
+              </div>
+              {titleMode === "decoupe" && (
+                <p className="layer-configurator__hint">
+                  Déplacez le texte près d'un bord : il s'accroche automatiquement en débordant de 1mm sur le cadre, comme
+                  les grands axes routiers, pour ne pas se détacher à la découpe.
+                </p>
+              )}
               <label>
                 Police
                 <select value={font} onChange={(e) => setFont(e.target.value)}>

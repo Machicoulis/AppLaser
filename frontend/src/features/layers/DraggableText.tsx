@@ -20,6 +20,7 @@ interface DraggableTextProps {
   svgRef: RefObject<SVGSVGElement | null>;
   position: TextPosition;
   onChange: (position: TextPosition) => void;
+  onDragEnd?: (position: TextPosition) => void;
   fontFamily: string;
   fontSize: number;
   fill: string;
@@ -27,8 +28,9 @@ interface DraggableTextProps {
 }
 
 /** Texte déplaçable (glisser le texte) et orientable (glisser la poignée ronde au-dessus), en coordonnées SVG. */
-export function DraggableText({ svgRef, position, onChange, fontFamily, fontSize, fill, children }: DraggableTextProps) {
+export function DraggableText({ svgRef, position, onChange, onDragEnd, fontFamily, fontSize, fill, children }: DraggableTextProps) {
   const dragStart = useRef<{ pointerX: number; pointerY: number; origX: number; origY: number } | null>(null);
+  const rotating = useRef(false);
   const handleDistance = fontSize * 1.6;
   // Zone de clic généreuse pour le déplacement : plus fiable qu'un hit-test sur les seuls traits des glyphes (espaces, contre-formes...).
   const hitWidth = Math.max(children.length * fontSize * 0.7, fontSize * 2);
@@ -36,6 +38,7 @@ export function DraggableText({ svgRef, position, onChange, fontFamily, fontSize
 
   function handleTranslateStart(e: ReactPointerEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const svg = svgRef.current;
     if (!svg) return;
     const p = toSvgPoint(svg, e.clientX, e.clientY);
@@ -44,7 +47,7 @@ export function DraggableText({ svgRef, position, onChange, fontFamily, fontSize
   }
 
   function handleTranslateMove(e: ReactPointerEvent) {
-    if (!dragStart.current) return;
+    if (!dragStart.current) return; // pas de bouton enfoncé : ignorer (simple survol)
     const svg = svgRef.current;
     if (!svg) return;
     const p = toSvgPoint(svg, e.clientX, e.clientY);
@@ -53,11 +56,15 @@ export function DraggableText({ svgRef, position, onChange, fontFamily, fontSize
     onChange({ ...position, x: dragStart.current.origX + dx, y: dragStart.current.origY + dy });
   }
 
-  function handleTranslateEnd() {
+  function handleTranslateEnd(e: ReactPointerEvent) {
+    if (dragStart.current) onDragEnd?.(position);
     dragStart.current = null;
+    rotating.current = false;
+    (e.target as Element).releasePointerCapture(e.pointerId);
   }
 
   function handleRotateMove(e: ReactPointerEvent) {
+    if (!rotating.current) return; // pas de bouton enfoncé : ignorer (simple survol)
     const svg = svgRef.current;
     if (!svg) return;
     const p = toSvgPoint(svg, e.clientX, e.clientY);
@@ -67,11 +74,13 @@ export function DraggableText({ svgRef, position, onChange, fontFamily, fontSize
 
   function handleRotateStart(e: ReactPointerEvent) {
     e.stopPropagation();
+    e.preventDefault();
+    rotating.current = true;
     (e.target as Element).setPointerCapture(e.pointerId);
   }
 
   return (
-    <g transform={`translate(${position.x},${position.y}) rotate(${position.rotationDeg})`}>
+    <g transform={`translate(${position.x},${position.y}) rotate(${position.rotationDeg})`} style={{ touchAction: "none" }}>
       <line x1={0} y1={0} x2={0} y2={-handleDistance} className="draggable-text__rotate-guide" pointerEvents="none" />
       <text x={0} y={0} textAnchor="middle" fontFamily={fontFamily} fontSize={fontSize} fill={fill} pointerEvents="none">
         {children}

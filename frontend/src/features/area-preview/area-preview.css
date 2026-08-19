@@ -82,6 +82,13 @@
   width: 3.2rem;
 }
 
+.area-preview__fill-only {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-style: italic;
+  flex-shrink: 0;
+}
+
 .area-preview__canvas {
   flex: 1;
   display: flex;

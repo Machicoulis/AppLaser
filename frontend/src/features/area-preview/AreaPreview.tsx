@@ -6,12 +6,16 @@ import "./area-preview.css";
 type WayCategory = "majorRoad" | "minorRoad" | "path" | "water" | "park" | "railway";
 type LayerLines = Record<WayCategory, [number, number][][]>;
 
-const LAYER_STYLE: Record<WayCategory, { label: string; stroke: string; fill?: string; defaultWidthMm: number; dash?: string }> = {
-  majorRoad: { label: "Grands axes routiers", stroke: "#1f2937", defaultWidthMm: 1.2 },
+const LAYER_STYLE: Record<
+  WayCategory,
+  { label: string; stroke: string; fill?: string; defaultWidthMm: number; dash?: string; fillOnly?: boolean }
+> = {
+  majorRoad: { label: "Grands axes routiers", stroke: "#1f2937", defaultWidthMm: 2 },
   minorRoad: { label: "Routes secondaires", stroke: "#6b7280", defaultWidthMm: 0.6 },
   path: { label: "Chemins / allées", stroke: "#9ca3af", defaultWidthMm: 0.3, dash: "2,2" },
   water: { label: "Plans d'eau", stroke: "#3b82f6", fill: "#93c5fd", defaultWidthMm: 0.3 },
-  park: { label: "Parcs", stroke: "#22c55e", fill: "#bbf7d0", defaultWidthMm: 0.3 },
+  // gravure pleine : pas de contour réglable, toute la surface est gravée
+  park: { label: "Parcs", stroke: "#22c55e", fill: "#bbf7d0", defaultWidthMm: 0.3, fillOnly: true },
   railway: { label: "Voies ferrées", stroke: "#78350f", defaultWidthMm: 0.5, dash: "4,2" },
 };
 
@@ -93,17 +97,21 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
                 <span className="area-preview__legend-label">
                   {LAYER_STYLE[cat].label} ({layers[cat].length})
                 </span>
-                <label className="area-preview__width-input">
-                  <input
-                    type="number"
-                    min={0.1}
-                    max={5}
-                    step={0.1}
-                    value={widthsMm[cat]}
-                    onChange={(e) => handleWidthChange(cat, Number(e.target.value))}
-                  />
-                  mm
-                </label>
+                {LAYER_STYLE[cat].fillOnly ? (
+                  <span className="area-preview__fill-only">gravure pleine</span>
+                ) : (
+                  <label className="area-preview__width-input">
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={5}
+                      step={0.1}
+                      value={widthsMm[cat]}
+                      onChange={(e) => handleWidthChange(cat, Number(e.target.value))}
+                    />
+                    mm
+                  </label>
+                )}
               </li>
             ))}
           </ul>
@@ -126,8 +134,8 @@ export function AreaPreview({ selection, onBack }: AreaPreviewProps) {
                       key={`${cat}-${i}`}
                       points={pointsToSvg(projected)}
                       fill={style.fill}
-                      stroke={style.stroke}
-                      strokeWidth={strokeWidth * 0.5}
+                      stroke={style.fillOnly ? "none" : style.stroke}
+                      strokeWidth={style.fillOnly ? 0 : strokeWidth * 0.5}
                     />
                   );
                 }

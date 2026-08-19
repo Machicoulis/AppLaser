@@ -1,11 +1,21 @@
 import { useRef, useState } from "react";
 import { computeViewBoxSize, isClosedWay, offsetShapeOutline, pointsToSvg, project, projectShapeOutline } from "../area-preview/project";
+import type { WidthSettings } from "../area-preview/AreaPreview";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 import { DraggableText, type TextPosition } from "./DraggableText";
-import { LAYER2_OPTIONAL, LAYER_STYLE, MODE_LABEL, type LayerLines, type WayCategory } from "./layerStyles";
+import {
+  FIXED_OPTIONAL,
+  FIXED_STYLE,
+  ROAD_LAYER_STYLE,
+  type CategoryStyle,
+  type FixedCategory,
+  type MapDataResponse,
+  type RoadLayer,
+} from "./layerStyles";
 import "./layer-configurator.css";
 
 type Tab = "layer1" | "layer2" | "layer3";
+type Line = [number, number][];
 
 const FONT_GROUPS = [
   {
@@ -31,16 +41,17 @@ const FRAME_THICKNESS_MM = 25;
 
 interface LayerConfiguratorProps {
   selection: AreaSelection;
-  layers: LayerLines;
-  initialWidthsMm: Record<WayCategory, number>;
+  data: MapDataResponse;
+  roadAssignment: Record<string, RoadLayer>;
+  initialWidthsMm: WidthSettings;
   onBack: () => void;
 }
 
-export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }: LayerConfiguratorProps) {
+export function LayerConfigurator({ selection, data, roadAssignment, initialWidthsMm, onBack }: LayerConfiguratorProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tab, setTab] = useState<Tab>("layer1");
   const [widthsMm, setWidthsMm] = useState(initialWidthsMm);
-  const [layer2Enabled, setLayer2Enabled] = useState<Record<string, boolean>>({ park: true, railway: true, path: true });
+  const [fixedEnabled, setFixedEnabled] = useState<Record<string, boolean>>({ park: true, railway: true });
 
   const [cityName, setCityName] = useState("");
   const [font, setFont] = useState(FONT_GROUPS[0].options[0].value);
@@ -55,6 +66,13 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
   const shapeOutline = projectShapeOutline(selection, viewWidth, viewHeight);
   const isRect = selection.shape.type === "rectangle";
 
+  // Regroupe les lignes de chaque type de route selon l'affectation choisie à l'étape précédente.
+  const layer2Roads: Line[] = Object.entries(data.roads).flatMap(([type, lines]) => (roadAssignment[type] === "layer2" ? lines : []));
+  let layer3Roads: Line[] = Object.entries(data.roads).flatMap(([type, lines]) => (roadAssignment[type] === "layer3" ? lines : []));
+  // Aucune route affectée au Layer 3 : les routes du Layer 2 servent de repli en découpe, sinon le Layer 3 serait vide.
+  const majorRoadFallback = layer3Roads.length === 0 && layer2Roads.length > 0;
+  if (majorRoadFallback) layer3Roads = layer2Roads;
+
   // Positions par défaut du titre/coordonnées : sous la carte, dans la marge du cadre — ajustées une fois puis laissées à l'utilisateur.
   const [titlePos, setTitlePos] = useState<TextPosition>(() => ({
     x: viewWidth / 2,
@@ -66,10 +84,6 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
     y: viewHeight + FRAME_THICKNESS_MM * mmToSvg * 0.65 + titleSizeMm * mmToSvg * 1.4,
     rotationDeg: 0,
   }));
-
-  // Pas de grand axe routier dans la zone : les routes secondaires servent de repli en découpe, sinon le Layer 3 serait vide de routes.
-  const majorRoadFallback = layers.majorRoad.length === 0 && layers.minorRoad.length > 0;
-  const layer3Roads = majorRoadFallback ? layers.minorRoad : layers.majorRoad;
 
   // Mode découpe : le texte doit chevaucher le cadre de 1mm (comme les routes principales qui traversent la bordure)
   // pour rester rattaché au cadre une fois découpé, plutôt que de former des lettres isolées et détachées.
@@ -105,19 +119,13 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
     if (titleMode === "decoupe") setTitlePos(snapToFrame(pos));
   }
 
-  function handleWidthChange(cat: WayCategory, mm: number) {
-    setWidthsMm((prev) => ({ ...prev, [cat]: mm }));
-  }
-
-  function renderLine(cat: WayCategory, line: [number, number][], i: number) {
-    const style = LAYER_STYLE[cat];
-    const strokeWidth = widthsMm[cat] * mmToSvg;
+  function renderLine(key: string, style: Pick<CategoryStyle, "stroke" | "fill" | "mode" | "dash" | "areaFill">, strokeWidth: number, line: Line, i: number) {
     const projected = line.map(([lat, lng]) => project(selection.bbox, lat, lng, viewWidth, viewHeight));
     const closed = isClosedWay(line);
     if (closed && style.fill) {
       return (
         <polygon
-          key={`${cat}-${i}`}
+          key={`${key}-${i}`}
           points={pointsToSvg(projected)}
           fill={style.fill}
           stroke={style.areaFill ? "none" : style.stroke}
@@ -127,7 +135,7 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
     }
     return (
       <polyline
-        key={`${cat}-${i}`}
+        key={`${key}-${i}`}
         points={pointsToSvg(projected)}
         fill="none"
         stroke={style.stroke}
@@ -139,16 +147,20 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
     );
   }
 
-  function renderClippedContent(categories: WayCategory[], clipId: string) {
+  function renderLayer2() {
     return (
       <>
         <defs>
-          <clipPath id={clipId}>
+          <clipPath id="layer2-clip">
             <polygon points={pointsToSvg(shapeOutline)} />
           </clipPath>
         </defs>
-        <g clipPath={`url(#${clipId})`}>
-          {categories.map((cat) => layers[cat].map((line, i) => renderLine(cat, line, i)))}
+        <g clipPath="url(#layer2-clip)">
+          {fixedEnabled.park && data.park.map((line, i) => renderLine("park", FIXED_STYLE.park, 0, line, i))}
+          {data.water.map((line, i) => renderLine("water", FIXED_STYLE.water, 0, line, i))}
+          {fixedEnabled.railway &&
+            data.railway.map((line, i) => renderLine("railway", FIXED_STYLE.railway, widthsMm.railway * mmToSvg, line, i))}
+          {layer2Roads.map((line, i) => renderLine("layer2Road", ROAD_LAYER_STYLE.layer2, widthsMm.layer2Road * mmToSvg, line, i))}
         </g>
         <polygon points={pointsToSvg(shapeOutline)} fill="none" stroke="#d1d5db" strokeWidth={2} />
       </>
@@ -196,7 +208,9 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
             <polygon points={pointsToSvg(shapeOutline)} />
           </clipPath>
         </defs>
-        <g clipPath="url(#layer3-clip)">{layer3Roads.map((line, i) => renderLine("majorRoad", line, i))}</g>
+        <g clipPath="url(#layer3-clip)">
+          {layer3Roads.map((line, i) => renderLine("layer3Road", ROAD_LAYER_STYLE.layer3, widthsMm.layer3Road * mmToSvg, line, i))}
+        </g>
 
         {cityName && (
           <DraggableText
@@ -258,40 +272,69 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
 
         {tab === "layer2" && (
           <div className="layer-configurator__section">
-            <p className="layer-configurator__hint">Routes secondaires et plans d'eau toujours inclus. Le reste est optionnel.</p>
-            {LAYER2_OPTIONAL.map((cat) => (
+            <p className="layer-configurator__hint">
+              Routes assignées au Layer 2 à l'étape précédente ({layer2Roads.length}) et plans d'eau toujours inclus. Parcs et
+              voies ferrées sont optionnels.
+            </p>
+            {FIXED_OPTIONAL.map((cat: FixedCategory) => (
               <label key={cat} className="layer-configurator__checkbox">
                 <input
                   type="checkbox"
-                  checked={layer2Enabled[cat]}
-                  onChange={(e) => setLayer2Enabled((prev) => ({ ...prev, [cat]: e.target.checked }))}
+                  checked={fixedEnabled[cat]}
+                  onChange={(e) => setFixedEnabled((prev) => ({ ...prev, [cat]: e.target.checked }))}
                 />
-                {LAYER_STYLE[cat].label} ({layers[cat].length})
+                {FIXED_STYLE[cat].label} ({data[cat].length})
               </label>
             ))}
             <ul className="layer-configurator__legend">
-              {(["minorRoad", "water", ...LAYER2_OPTIONAL.filter((c) => layer2Enabled[c])] as WayCategory[]).map((cat) => (
-                <li key={cat}>
-                  <span className="layer-configurator__swatch" style={{ background: LAYER_STYLE[cat].fill ?? LAYER_STYLE[cat].stroke }} />
-                  {LAYER_STYLE[cat].label}
-                  <span className={`layer-configurator__mode layer-configurator__mode--${LAYER_STYLE[cat].mode}`}>
-                    {MODE_LABEL[LAYER_STYLE[cat].mode]}
-                  </span>
-                  {!LAYER_STYLE[cat].areaFill && (
-                    <label className="layer-configurator__width-input">
-                      <input
-                        type="number"
-                        min={0.1}
-                        max={5}
-                        step={0.1}
-                        value={widthsMm[cat]}
-                        onChange={(e) => handleWidthChange(cat, Number(e.target.value))}
-                      />
-                      mm
-                    </label>
-                  )}
+              <li>
+                <span className="layer-configurator__swatch" style={{ background: ROAD_LAYER_STYLE.layer2.stroke }} />
+                Routes ({layer2Roads.length})
+                <span className="layer-configurator__mode layer-configurator__mode--gravure">gravure</span>
+                <label className="layer-configurator__width-input">
+                  <input
+                    type="number"
+                    min={0.1}
+                    max={5}
+                    step={0.1}
+                    value={widthsMm.layer2Road}
+                    onChange={(e) => setWidthsMm((prev) => ({ ...prev, layer2Road: Number(e.target.value) }))}
+                  />
+                  mm
+                </label>
+              </li>
+              <li>
+                <span className="layer-configurator__swatch" style={{ background: FIXED_STYLE.water.fill }} />
+                {FIXED_STYLE.water.label}
+                <span className="layer-configurator__mode layer-configurator__mode--decoupe">découpe</span>
+                <span className="layer-configurator__fill-only">pleine</span>
+              </li>
+              {fixedEnabled.park && (
+                <li>
+                  <span className="layer-configurator__swatch" style={{ background: FIXED_STYLE.park.fill }} />
+                  {FIXED_STYLE.park.label}
+                  <span className="layer-configurator__mode layer-configurator__mode--gravure">gravure</span>
+                  <span className="layer-configurator__fill-only">pleine</span>
                 </li>
-              ))}
+              )}
+              {fixedEnabled.railway && (
+                <li>
+                  <span className="layer-configurator__swatch" style={{ background: FIXED_STYLE.railway.stroke }} />
+                  {FIXED_STYLE.railway.label}
+                  <span className="layer-configurator__mode layer-configurator__mode--gravure">gravure</span>
+                  <label className="layer-configurator__width-input">
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={5}
+                      step={0.1}
+                      value={widthsMm.railway}
+                      onChange={(e) => setWidthsMm((prev) => ({ ...prev, railway: Number(e.target.value) }))}
+                    />
+                    mm
+                  </label>
+                </li>
+              )}
             </ul>
           </div>
         )}
@@ -304,15 +347,15 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
                 min={0.1}
                 max={5}
                 step={0.1}
-                value={widthsMm.majorRoad}
-                onChange={(e) => handleWidthChange("majorRoad", Number(e.target.value))}
+                value={widthsMm.layer3Road}
+                onChange={(e) => setWidthsMm((prev) => ({ ...prev, layer3Road: Number(e.target.value) }))}
               />
-              mm — {LAYER_STYLE.majorRoad.label}
+              mm — Routes Layer 3 ({layer3Roads.length})
             </label>
             {majorRoadFallback && (
               <p className="layer-configurator__fallback-note">
-                Aucun grand axe routier dans cette zone : les routes secondaires sont utilisées en découpe à la place, pour
-                que le Layer 3 ne reste pas vide.
+                Aucune route affectée au Layer 3 à l'étape précédente : les routes du Layer 2 sont utilisées en découpe à la
+                place, pour que le Layer 3 ne reste pas vide.
               </p>
             )}
 
@@ -342,7 +385,7 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
               {titleMode === "decoupe" && (
                 <p className="layer-configurator__hint">
                   Déplacez le texte près d'un bord : il s'accroche automatiquement en débordant de 1mm sur le cadre, comme
-                  les grands axes routiers, pour ne pas se détacher à la découpe.
+                  les routes du Layer 3, pour ne pas se détacher à la découpe.
                 </p>
               )}
               <label>
@@ -406,8 +449,7 @@ export function LayerConfigurator({ selection, layers, initialWidthsMm, onBack }
         >
           <rect x={-5000} y={-5000} width={10000} height={10000} fill="#fafaf9" />
           {tab === "layer1" && <polygon points={pointsToSvg(shapeOutline)} fill="white" stroke="#1f2937" strokeWidth={2} />}
-          {tab === "layer2" &&
-            renderClippedContent(["minorRoad", "water", ...LAYER2_OPTIONAL.filter((c) => layer2Enabled[c])], "layer2-clip")}
+          {tab === "layer2" && renderLayer2()}
           {tab === "layer3" && renderLayer3()}
         </svg>
       </div>

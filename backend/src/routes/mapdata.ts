@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { fetchOverpass, type OverpassNode, type OverpassWay } from "../lib/overpassClient.js";
-import { buildAreaQuery, classifyWay, type BoundingBox, type WayCategory } from "../lib/mapQuery.js";
+import { buildAreaQuery, classifyFixed, classifyHighway, type BoundingBox, type FixedCategory } from "../lib/mapQuery.js";
 
 const router = Router();
 
-export type LayerLines = Record<WayCategory, [number, number][][]>;
+export type MapDataResponse = Record<FixedCategory, [number, number][][]> & {
+  roads: Record<string, [number, number][][]>;
+};
 
 router.post("/", async (req, res) => {
   const { bbox } = req.body as { bbox?: BoundingBox };
@@ -21,18 +23,26 @@ router.post("/", async (req, res) => {
       }
     }
 
-    const layers: LayerLines = { majorRoad: [], minorRoad: [], path: [], water: [], park: [], railway: [] };
+    const result: MapDataResponse = { water: [], park: [], railway: [], roads: {} };
 
     for (const el of data.elements) {
       if (el.type !== "way") continue;
       const way = el as OverpassWay;
-      const category = classifyWay(way.tags);
-      if (!category) continue;
       const points = way.nodes.map((id) => nodes.get(id)).filter((p): p is [number, number] => Boolean(p));
-      if (points.length >= 2) layers[category].push(points);
+      if (points.length < 2) continue;
+
+      const fixed = classifyFixed(way.tags);
+      if (fixed) {
+        result[fixed].push(points);
+        continue;
+      }
+      const highway = classifyHighway(way.tags);
+      if (highway) {
+        (result.roads[highway] ??= []).push(points);
+      }
     }
 
-    res.json(layers);
+    res.json(result);
   } catch (err) {
     console.error("Erreur /api/mapdata :", err);
     res.status(502).json({ error: "Impossible de récupérer les données OpenStreetMap" });

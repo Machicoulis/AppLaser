@@ -1,10 +1,19 @@
 import { useState } from "react";
-import { AreaPreview } from "./features/area-preview/AreaPreview";
+import { AreaPreview, type WidthSettings } from "./features/area-preview/AreaPreview";
 import { LayerConfigurator } from "./features/layers/LayerConfigurator";
-import type { LayerLines, WayCategory } from "./features/layers/layerStyles";
+import type { MapDataResponse, RoadLayer } from "./features/layers/layerStyles";
 import { MapAreaSelector, type AreaSelection } from "./features/map-selection/MapAreaSelector";
 
-type Step = { name: "select" } | { name: "preview"; selection: AreaSelection } | { name: "layers"; selection: AreaSelection; layers: LayerLines; widthsMm: Record<WayCategory, number> };
+type Step =
+  | { name: "select" }
+  | { name: "preview"; selection: AreaSelection }
+  | {
+      name: "layers";
+      selection: AreaSelection;
+      data: MapDataResponse;
+      roadAssignment: Record<string, RoadLayer>;
+      widthsMm: WidthSettings;
+    };
 
 function App() {
   const [step, setStep] = useState<Step>({ name: "select" });
@@ -14,7 +23,9 @@ function App() {
       <AreaPreview
         selection={step.selection}
         onBack={() => setStep({ name: "select" })}
-        onContinue={(layers, widthsMm) => setStep({ name: "layers", selection: step.selection, layers, widthsMm })}
+        onContinue={(data, roadAssignment, widthsMm) =>
+          setStep({ name: "layers", selection: step.selection, data, roadAssignment, widthsMm })
+        }
       />
     );
   }
@@ -23,7 +34,8 @@ function App() {
     return (
       <LayerConfigurator
         selection={step.selection}
-        layers={step.layers}
+        data={step.data}
+        roadAssignment={step.roadAssignment}
         initialWidthsMm={step.widthsMm}
         onBack={() => setStep({ name: "preview", selection: step.selection })}
       />

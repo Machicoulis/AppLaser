@@ -10,9 +10,9 @@ export interface BoundingBox {
   east: number;
 }
 
-const METERS_PER_DEGREE_LAT = 111_320;
+export const METERS_PER_DEGREE_LAT = 111_320;
 
-function metersPerDegreeLng(latDeg: number): number {
+export function metersPerDegreeLng(latDeg: number): number {
   return METERS_PER_DEGREE_LAT * Math.cos((latDeg * Math.PI) / 180);
 }
 

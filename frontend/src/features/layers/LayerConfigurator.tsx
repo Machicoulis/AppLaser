@@ -5,6 +5,7 @@ import {
   offsetShapeOutline,
   pointsToSvg,
   project,
+  projectionBbox,
   projectShapeOutline,
   raycastToPolygon,
 } from "../area-preview/project";
@@ -88,6 +89,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   const { viewWidth, viewHeight } = computeViewBoxSize(selection);
   const mmToSvg = viewWidth / selection.plateWidthMm;
   const shapeOutline = projectShapeOutline(selection, viewWidth, viewHeight);
+  const projBbox = projectionBbox(selection);
   const isRect = selection.shape.type === "rectangle";
 
   // Regroupe les lignes de chaque type de route selon l'affectation choisie à l'étape précédente.
@@ -146,7 +148,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
   }
 
   function renderLine(key: string, style: Pick<CategoryStyle, "stroke" | "fill" | "mode" | "dash" | "areaFill">, strokeWidth: number, line: Line, i: number) {
-    const projected = line.map(([lat, lng]) => project(selection.bbox, lat, lng, viewWidth, viewHeight));
+    const projected = line.map(([lat, lng]) => project(projBbox, lat, lng, viewWidth, viewHeight));
     const closed = isClosedWay(line);
     if (closed && style.fill) {
       return (

@@ -1,7 +1,32 @@
-import { pointAtDistance, type BoundingBox } from "../map-selection/geo";
+import { METERS_PER_DEGREE_LAT, metersPerDegreeLng, pointAtDistance, type BoundingBox } from "../map-selection/geo";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 
 export const VIEWBOX_SIZE = 1000;
+
+/** Bbox à utiliser pour la projection (`project`) : pour un cercle/polygone régulier, une bbox géographique
+ * n'est en général pas carrée en mètres réels (ex. hexagone pointe en haut ≈ 1.73R × 2R) alors que le viewBox
+ * SVG est forcé carré (`computeViewBoxSize`) — projeter directement sur `selection.bbox` étirerait donc la forme
+ * de façon anisotrope (arêtes inégales). On agrandit la bbox sur son plus petit axe (en mètres, centrée) pour que
+ * largeur et hauteur représentent la même distance réelle, garantissant une échelle identique en x et en y.
+ * Le rectangle n'a pas ce problème : sa bbox est construite directement avec le ratio largeur/hauteur de la plaque. */
+export function projectionBbox(selection: AreaSelection): BoundingBox {
+  if (selection.shape.type === "rectangle") return selection.bbox;
+  const { bbox } = selection;
+  const centerLat = (bbox.north + bbox.south) / 2;
+  const centerLng = (bbox.east + bbox.west) / 2;
+  const mPerLng = metersPerDegreeLng(centerLat);
+  const widthM = (bbox.east - bbox.west) * mPerLng;
+  const heightM = (bbox.north - bbox.south) * METERS_PER_DEGREE_LAT;
+  const sizeM = Math.max(widthM, heightM);
+  const halfWidthDeg = sizeM / 2 / mPerLng;
+  const halfHeightDeg = sizeM / 2 / METERS_PER_DEGREE_LAT;
+  return {
+    west: centerLng - halfWidthDeg,
+    east: centerLng + halfWidthDeg,
+    south: centerLat - halfHeightDeg,
+    north: centerLat + halfHeightDeg,
+  };
+}
 
 /** Taille du viewBox SVG selon la forme : le format de plaque (largeur/hauteur) ne s'applique qu'au rectangle ;
  * cercle et polygone régulier sont intrinsèquement symétriques, un viewBox carré évite toute déformation. */
@@ -26,15 +51,16 @@ export function projectShapeOutline(selection: AreaSelection, viewWidth: number,
       [0, viewHeight],
     ];
   }
+  const bbox = projectionBbox(selection);
   if (selection.shape.type === "polygon") {
-    return selection.shape.points.map((p) => project(selection.bbox, p.lat, p.lng, viewWidth, viewHeight));
+    return selection.shape.points.map((p) => project(bbox, p.lat, p.lng, viewWidth, viewHeight));
   }
   const { center, radiusM } = selection.shape;
   const sides = 64;
   const points: [number, number][] = [];
   for (let i = 0; i < sides; i++) {
     const p = pointAtDistance(center, radiusM, (360 / sides) * i);
-    points.push(project(selection.bbox, p.lat, p.lng, viewWidth, viewHeight));
+    points.push(project(bbox, p.lat, p.lng, viewWidth, viewHeight));
   }
   return points;
 }

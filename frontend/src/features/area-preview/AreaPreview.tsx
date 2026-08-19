@@ -13,7 +13,7 @@ import {
   type RoadLayer,
 } from "../layers/layerStyles";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
-import { computeViewBoxSize, isClosedWay, pointsToSvg, project, projectShapeOutline } from "./project";
+import { computeViewBoxSize, isClosedWay, pointsToSvg, project, projectionBbox, projectShapeOutline } from "./project";
 import "./area-preview.css";
 
 export interface WidthSettings {
@@ -79,6 +79,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
   // le viewBox SVG représente la plaque physique : ce facteur convertit un réglage en mm en unités SVG
   const mmToSvg = viewWidth / selection.plateWidthMm;
   const shapeOutline = projectShapeOutline(selection, viewWidth, viewHeight);
+  const projBbox = projectionBbox(selection);
   // exclut les petits plans d'eau (mares, fontaines...) en dessous du seuil choisi
   const displayData: MapDataResponse | null = data && { ...data, water: filterBySize(data.water, minWaterSizeM) };
   const roadTypes = data ? orderHighwayTypes(Object.keys(data.roads)) : [];
@@ -88,7 +89,7 @@ export function AreaPreview({ selection, onBack, onContinue }: AreaPreviewProps)
   }
 
   function renderLine(key: string, style: { stroke: string; fill?: string; mode: "gravure" | "decoupe"; dash?: string; areaFill?: boolean }, strokeWidth: number, line: [number, number][], i: number) {
-    const projected = line.map(([lat, lng]) => project(selection.bbox, lat, lng, viewWidth, viewHeight));
+    const projected = line.map(([lat, lng]) => project(projBbox, lat, lng, viewWidth, viewHeight));
     const closed = isClosedWay(line);
     if (closed && style.fill) {
       return (

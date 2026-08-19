@@ -52,6 +52,7 @@ Inspiré des maquettes cartographiques en bois du commerce (ex. carte de Pavia e
 **Workflow de configuration — layer par layer**
 - L'utilisateur configure les couches une par une dans l'interface : pour chaque layer, il sélectionne les types d'éléments OSM à inclure (ex. Layer 2 : routes secondaires toujours incluses + cases à cocher parcs / voies ferrées / chemins ; Layer 3 : routes principales).
 - Aperçu visuel indépendant par layer pendant la configuration, avant export.
+- **Aperçu final** : un onglet supplémentaire superpose les 3 layers (fond, gravure/eau découpée, cadre + routes principales + titre) pour visualiser le rendu global une fois la pièce assemblée — indicatif seulement, la fabrication reste par plaque séparée.
 
 **Cadre, titre et coordonnées (sur le Layer 3)**
 - Le nom de la ville est **intégré et découpé/gravé en relief dans le cadre** du Layer 3.

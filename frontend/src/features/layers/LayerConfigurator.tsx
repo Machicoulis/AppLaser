@@ -1,5 +1,13 @@
 import { useRef, useState } from "react";
-import { computeViewBoxSize, isClosedWay, offsetShapeOutline, pointsToSvg, project, projectShapeOutline } from "../area-preview/project";
+import {
+  computeViewBoxSize,
+  isClosedWay,
+  offsetShapeOutline,
+  pointsToSvg,
+  project,
+  projectShapeOutline,
+  raycastToPolygon,
+} from "../area-preview/project";
 import type { WidthSettings } from "../area-preview/AreaPreview";
 import type { AreaSelection } from "../map-selection/MapAreaSelector";
 import { DraggableText, type TextPosition } from "./DraggableText";
@@ -14,7 +22,7 @@ import {
 } from "./layerStyles";
 import "./layer-configurator.css";
 
-type Tab = "layer1" | "layer2" | "layer3";
+type Tab = "layer1" | "layer2" | "layer3" | "final";
 type Line = [number, number][];
 
 const FONT_GROUPS = [
@@ -120,15 +128,17 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
       if (nearestEdge === "left") return { ...pos, x: -overlapSvg };
       return { ...pos, x: viewWidth + overlapSvg };
     }
-    // Cercle/polygone : accroche radiale depuis le centroïde de la forme.
+    // Cercle/polygone : accroche radiale depuis le centroïde de la forme, jusqu'à la frontière réelle du contour
+    // (un rayon moyen ne convient pas : la projection lat/lng n'est pas isométrique, les sommets ne sont pas équidistants en SVG).
     const cx = shapeOutline.reduce((sum, [x]) => sum + x, 0) / shapeOutline.length;
     const cy = shapeOutline.reduce((sum, [, y]) => sum + y, 0) / shapeOutline.length;
-    const shapeRadius = shapeOutline.reduce((sum, [x, y]) => sum + Math.hypot(x - cx, y - cy), 0) / shapeOutline.length;
     const dx = pos.x - cx;
     const dy = pos.y - cy;
     const dist = Math.hypot(dx, dy) || 1;
-    const targetDist = shapeRadius + overlapSvg;
-    return { ...pos, x: cx + (dx / dist) * targetDist, y: cy + (dy / dist) * targetDist };
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const [bx, by] = raycastToPolygon(cx, cy, ux, uy, shapeOutline);
+    return { ...pos, x: bx + ux * overlapSvg, y: by + uy * overlapSvg };
   }
 
   function handleTitleDragEnd(pos: TextPosition) {
@@ -259,6 +269,69 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
     );
   }
 
+  // Aperçu final : superpose les 3 plaques telles qu'assemblées (fond + gravure/eau découpée + cadre/routes principales/titre).
+  function renderFinalPreview() {
+    const marginSvg = FRAME_THICKNESS_MM * mmToSvg;
+    const outerRadiusSvg = outerRadiusMm * mmToSvg;
+    const titleSizeSvg = titleSizeMm * mmToSvg;
+
+    const outerX = -marginSvg;
+    const outerY = -marginSvg;
+    const outerW = viewWidth + marginSvg * 2;
+    const outerH = viewHeight + marginSvg * 2 + (showCoordinates ? titleSizeMm * mmToSvg * 1.8 : 0);
+
+    return (
+      <>
+        {/* Layer 1 : plaque de fond pleine, peinte en bleu derrière les découpes */}
+        <polygon points={pointsToSvg(shapeOutline)} fill="white" stroke="#1f2937" strokeWidth={1} />
+
+        {/* Layer 3 : cadre extérieur */}
+        {isRect ? (
+          <rect x={outerX} y={outerY} width={outerW} height={outerH} rx={outerRadiusSvg} fill="none" stroke="#1f2937" strokeWidth={2} />
+        ) : (
+          <polygon points={pointsToSvg(offsetShapeOutline(shapeOutline, marginSvg))} fill="none" stroke="#1f2937" strokeWidth={2} />
+        )}
+
+        <defs>
+          <clipPath id="final-clip">
+            <polygon points={pointsToSvg(shapeOutline)} />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#final-clip)">
+          {/* Layer 2 : gravure + plans d'eau découpés laissant apparaître le fond */}
+          {fixedEnabled.park && data.park.map((line, i) => renderLine("final-park", FIXED_STYLE.park, 0, line, i))}
+          {data.water.map((line, i) => renderLine("final-water", FIXED_STYLE.water, 0, line, i))}
+          {fixedEnabled.railway &&
+            data.railway.map((line, i) => renderLine("final-railway", FIXED_STYLE.railway, widthsMm.railway * mmToSvg, line, i))}
+          {layer2Roads.map((line, i) => renderLine("final-layer2Road", ROAD_LAYER_STYLE.layer2, widthsMm.layer2Road * mmToSvg, line, i))}
+          {/* Layer 3 : routes principales découpées, fondues avec le cadre */}
+          {layer3Roads.map((line, i) => renderLine("final-layer3Road", ROAD_LAYER_STYLE.layer3, widthsMm.layer3Road * mmToSvg, line, i))}
+        </g>
+
+        {cityName && (
+          <g transform={`translate(${titlePos.x},${titlePos.y}) rotate(${titlePos.rotationDeg})`}>
+            <text
+              textAnchor="middle"
+              fontFamily={font}
+              fontWeight={fontWeight}
+              fontSize={titleSizeSvg}
+              fill={titleMode === "decoupe" ? "#1e3a8a" : "#1f2937"}
+            >
+              {cityName.toUpperCase()}
+            </text>
+          </g>
+        )}
+        {showCoordinates && (
+          <g transform={`translate(${coordsPos.x},${coordsPos.y}) rotate(${coordsPos.rotationDeg})`}>
+            <text textAnchor="middle" fontFamily={font} fontWeight={fontWeight} fontSize={titleSizeSvg * 0.55} fill="#4b5563">
+              {coordinatesText}
+            </text>
+          </g>
+        )}
+      </>
+    );
+  }
+
   return (
     <div className="layer-configurator">
       <aside className="layer-configurator__panel">
@@ -276,6 +349,9 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
           </button>
           <button type="button" className={tab === "layer3" ? "active" : ""} onClick={() => setTab("layer3")}>
             Layer 3 — Découpe
+          </button>
+          <button type="button" className={tab === "final" ? "active" : ""} onClick={() => setTab("final")}>
+            Aperçu final
           </button>
         </div>
 
@@ -399,7 +475,10 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
                 <button
                   type="button"
                   className={titleMode === "decoupe" ? "active" : ""}
-                  onClick={() => setTitleMode("decoupe")}
+                  onClick={() => {
+                    setTitleMode("decoupe");
+                    setTitlePos((prev) => snapToFrame(prev));
+                  }}
                 >
                   Découpe (accroché au cadre)
                 </button>
@@ -469,6 +548,16 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
             </fieldset>
           </div>
         )}
+
+        {tab === "final" && (
+          <div className="layer-configurator__section">
+            <p className="layer-configurator__hint">
+              Superposition indicative des 3 plaques une fois assemblées : fond peint, gravure/eau découpée du Layer 2, et
+              cadre + routes principales + titre du Layer 3. Utile pour visualiser le rendu global — la fabrication reste
+              par plaque séparée (onglets précédents).
+            </p>
+          </div>
+        )}
       </aside>
 
       <div className="layer-configurator__canvas">
@@ -495,6 +584,7 @@ export function LayerConfigurator({ selection, data, roadAssignment, initialWidt
           )}
           {tab === "layer2" && renderLayer2()}
           {tab === "layer3" && renderLayer3()}
+          {tab === "final" && renderFinalPreview()}
         </svg>
       </div>
     </div>

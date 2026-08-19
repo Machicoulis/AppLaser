@@ -60,6 +60,30 @@ export function offsetShapeOutline(points: [number, number][], marginSvg: number
   });
 }
 
+/** Point d'intersection exact entre un rayon (depuis cx,cy dans la direction dirX,dirY) et le contour d'un polygone.
+ * Utilisé pour accrocher un élément à la frontière réelle d'une forme non rectangulaire (l'écart entre sommets
+ * n'est pas uniforme une fois projeté en SVG, un simple rayon moyen sous- ou sur-estime la vraie limite locale). */
+export function raycastToPolygon(cx: number, cy: number, dirX: number, dirY: number, points: [number, number][]): [number, number] {
+  let bestT: number | null = null;
+  for (let i = 0; i < points.length; i++) {
+    const [ax, ay] = points[i];
+    const [bx, by] = points[(i + 1) % points.length];
+    const ex = bx - ax;
+    const ey = by - ay;
+    const denom = dirX * ey - dirY * ex;
+    if (Math.abs(denom) < 1e-9) continue;
+    const rx = ax - cx;
+    const ry = ay - cy;
+    const t = (rx * ey - ry * ex) / denom;
+    const s = (rx * dirY - ry * dirX) / denom;
+    if (t > 1e-6 && s >= -1e-6 && s <= 1 + 1e-6 && (bestT === null || t < bestT)) {
+      bestT = t;
+    }
+  }
+  const t = bestT ?? 0;
+  return [cx + dirX * t, cy + dirY * t];
+}
+
 export function pointsToSvg(points: [number, number][]): string {
   return points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
 }
